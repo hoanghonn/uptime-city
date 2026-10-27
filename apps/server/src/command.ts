@@ -102,13 +102,15 @@ function toAction(name: string, args: any): Action | null {
   }
 }
 
-export async function runCommand(client: ChatClient, input: CommandInput): Promise<CommandResult> {
+export type CommandOptions = { model?: string; systemPrompt?: string }
+
+export async function runCommand(client: ChatClient, input: CommandInput, opts: CommandOptions = {}): Promise<CommandResult> {
   const stage = STAGES[input.stageId]
   if (!stage) throw new Error(`unknown stage ${input.stageId}`)
   const ctx = { stage, heroClass: input.heroClass }
   const result: CommandResult = { actions: [], city: input.city, heroLine: '', rejected: [] }
   const messages: any[] = [
-    { role: 'system', content: commandSystemPrompt(stage, input.heroClass, input.city, input.phase) },
+    { role: 'system', content: opts.systemPrompt ?? commandSystemPrompt(stage, input.heroClass, input.city, input.phase) },
     { role: 'user', content: input.transcript },
   ]
 
@@ -116,7 +118,7 @@ export async function runCommand(client: ChatClient, input: CommandInput): Promi
     let res: any
     try {
       res = await client.chat.completions.create(
-        { model: COMMAND_MODEL, reasoning_effort: 'minimal', messages, tools: commandTools(stage, input.phase) },
+        { model: opts.model ?? COMMAND_MODEL, reasoning_effort: 'minimal', messages, tools: commandTools(stage, input.phase) },
         { timeout: 20_000 },
       )
     } catch {

@@ -11,6 +11,7 @@ const shorty: Stage = {
   wildcard: 'cache',
   chaos: [{ id: 'celebrity', title: 'Celebrity tweet', at: 15, kind: 'hot_key', extraRps: 4000 }],
   rivalName: 'Rusty',
+  rivalTaunt: 'Databases are all you need, kid.',
   rivalClass: 'data_keeper',
   rivalBlindSpot:
     'You believe the database is always the bottleneck. Spend most of your coins on database nodes and keep the API servers small.',

@@ -29,3 +29,14 @@ describe('POST /api/command', () => {
     expect(res.statusCode).toBe(400)
   })
 })
+
+describe('POST /api/rival', () => {
+  it('returns a rival build for a known stage', async () => {
+    const never: ChatClient = { chat: { completions: { create: () => new Promise(() => {}) } } }
+    const app = buildApp({ meta: okClient, bot: okClient })
+    const res = await app.inject({ method: 'POST', url: '/api/rival', payload: { stageId: 'shorty' } })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().source).toBe('scripted')
+    expect(never).toBeDefined()
+  })
+})

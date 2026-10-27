@@ -36,6 +36,7 @@ export type Stage = {
   wildcard?: BuildingType
   chaos: ChaosCard[]
   rivalName: string
+  rivalTaunt: string
   rivalClass: HeroClass
   rivalBlindSpot: string
   rivalScripted: Action[]
