@@ -3,7 +3,8 @@ import { applyAction, autoWire, CATALOG, CLASSES, STAGES, STAGE_ORDER, type City
 import { City3D } from '../city/City3D'
 import { browserPlayer } from '../voice/player'
 import { PushToTalk, type PttState } from '../voice/pushToTalk'
-import { postCommand, postRival } from './api'
+import { BusyError, getStatus, LowPowerError, newRun, postCommand, postRival } from './api'
+import { localCommand } from './localParser'
 import {
   ASK_BACK_MS, FIREFIGHT_MS, advance, answerText, applyCommand, applyFirefight, beginBuild, initialGame, say, setRival, setThinking, startStage,
   startTest, tickClock, toMap, type Game as G,
@@ -31,6 +32,10 @@ export default function Game() {
   const holdingRef = useRef(false)
   holdingRef.current = ptt === 'listening' || typed.trim() !== ''
   const [heroClass, setHeroClass] = useState<HeroClass>('generalist')
+  const [lowPower, setLowPower] = useState(false)
+  const lowPowerRef = useRef(false)
+  lowPowerRef.current = lowPower
+  useEffect(() => { void getStatus().then((m) => setLowPower(m === 'low-power')) }, [])
   const stage = STAGES[g.stageId]
 
   const send = useCallback(async (transcript: string) => {
@@ -40,7 +45,17 @@ export default function Game() {
     if (!phase) return
     setG((x) => setThinking(say(x, { who: 'you', text: transcript }), true))
     try {
-      const res = await postCommand({ stageId: cur.stageId, heroClass: cur.heroClass, city: cur.city, transcript, phase })
+      const ask = async () => {
+        if (lowPowerRef.current) return localCommand(transcript, cur.stageId, cur.heroClass, cur.city, phase)
+        try {
+          return await postCommand({ stageId: cur.stageId, heroClass: cur.heroClass, city: cur.city, transcript, phase })
+        } catch (e) {
+          if (!(e instanceof LowPowerError)) throw e
+          setLowPower(true)
+          return localCommand(transcript, cur.stageId, cur.heroClass, cur.city, phase)
+        }
+      }
+      const res = await ask()
       if (phase === 'firefight') {
         setG((x) => say(applyFirefight(x, res.actions[0] ?? null), { who: 'hero', text: res.heroLine }))
         void browserPlayer.say({ text: res.heroLine, voice: 'hero' })
@@ -50,9 +65,10 @@ export default function Game() {
       setG(go ? startTest(game) : game)
       void browserPlayer.say({ text: res.askBack?.question ?? res.heroLine, voice: 'hero' })
       if (go) void browserPlayer.say({ line: 'test.start', voice: 'commentator' })
-    } catch {
-      setG((x) => setThinking(say(x, { who: 'hero', text: 'Comms are down, type your orders.' }), false))
-      void browserPlayer.say({ line: 'hero.comms_down', voice: 'hero' })
+    } catch (e) {
+      const text = e instanceof BusyError ? e.message : 'Comms are down, type your orders.'
+      setG((x) => setThinking(say(x, { who: e instanceof BusyError ? 'system' : 'hero', text }), false))
+      if (!(e instanceof BusyError)) void browserPlayer.say({ line: 'hero.comms_down', voice: 'hero' })
     }
   }, [])
 
@@ -62,7 +78,7 @@ export default function Game() {
     const wsUrl = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/stt`
     pttRef.current = new PushToTalk({ wsUrl, onState: setPtt, onPartial: setPartial, onFinal: (t) => { setPartial(''); void send(t) } })
     const typing = (e: KeyboardEvent) => (e.target as HTMLElement)?.tagName === 'INPUT'
-    const down = (e: KeyboardEvent) => { if (e.code === 'Space' && !e.repeat && !typing(e)) { e.preventDefault(); void pttRef.current?.start() } }
+    const down = (e: KeyboardEvent) => { if (e.code === 'Space' && !e.repeat && !typing(e) && !lowPowerRef.current) { e.preventDefault(); void pttRef.current?.start() } }
     const up = (e: KeyboardEvent) => { if (e.code === 'Space' && !typing(e)) { e.preventDefault(); pttRef.current?.stop() } }
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
@@ -94,6 +110,7 @@ export default function Game() {
   }, [send])
 
   const begin = (stageId: string) => {
+    newRun()
     setG((x) => startStage(x, stageId, heroClass))
     void browserPlayer.say({ line: `stage.${stageId}.brief`, voice: 'commentator' })
   }
@@ -104,8 +121,8 @@ export default function Game() {
       const rival = await postRival(gRef.current.stageId)
       setG((x) => setRival(x, rival))
       void browserPlayer.say(rival.source === 'live' ? { text: rival.lines[0], voice: 'rival' } : { line: `rival.${gRef.current.stageId}.taunt`, voice: 'rival' })
-    } catch {
-      setG((x) => say(x, { who: 'system', text: 'The rival could not connect. Try the stage again.' }))
+    } catch (e) {
+      setG((x) => say(x, { who: 'system', text: e instanceof BusyError ? e.message : 'The rival could not connect. Try the stage again.' }))
     }
   }
 
@@ -154,6 +171,7 @@ export default function Game() {
         <span className="phase">{g.phase === 'build' ? 'Build' : g.phase === 'briefing' ? 'Briefing' : g.phase === 'result' ? 'Result' : `Stress test ${g.t.toFixed(1)} s`}</span>
         {chaosLive && <span className="chaos">Chaos card: {stage.chaos[0].title}</span>}
         {shownCity.wildcardUsed || g.firefightAction || !stage.wildcard ? null : <span className="wild">Wildcard: free {CATALOG[stage.wildcard].name.toLowerCase()}</span>}
+        {lowPower && <span className="lowpower" title={`Today's AI budget is used up, so ${HERO_NAME} understands simple typed orders only.`}>Low-power mode: type simple orders</span>}
         <span className="spacer" />
         {g.phase === 'build' && (
           <button className="primary" disabled={!g.rival || g.thinking} onClick={() => setG((x) => { const n = startTest(x); if (n !== x) void browserPlayer.say({ line: 'test.start', voice: 'commentator' }); return n })}>
@@ -241,7 +259,7 @@ export default function Game() {
           onMouseDown={() => void pttRef.current?.start()}
           onMouseUp={() => pttRef.current?.stop()}
           onMouseLeave={() => pttRef.current?.stop()}
-          disabled={!(g.phase === 'build' || g.phase === 'firefight')}
+          disabled={lowPower || !(g.phase === 'build' || g.phase === 'firefight')}
         >
           {ptt === 'listening' ? 'Listening...' : ptt === 'thinking' || g.thinking ? `${HERO_NAME} is thinking...` : ptt === 'no-mic' ? 'Microphone blocked' : 'Hold Space to talk'}
         </button>
