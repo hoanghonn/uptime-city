@@ -5,7 +5,7 @@ export type XZ = [number, number]
 export type Road = { from: string; to: string; points: [XZ, XZ] }
 
 const COLUMN: Record<BuildingType | 'users', number> = {
-  users: 0, lb: 1, cdn: 1, cache: 2, api: 3, queue: 4, worker: 5, sql: 6, nosql: 6, storage: 6,
+  users: 0, cdn: 1, lb: 2, cache: 3, api: 4, queue: 5, worker: 6, sql: 7, nosql: 7, storage: 7,
 }
 
 /** Deterministic columns by role (users -> edge -> compute -> data), rows by order of placement. */
@@ -16,7 +16,7 @@ export function layoutCity(city: City): { positions: Record<string, XZ>; roads: 
     const type = typeOf(id)
     if (!type) return COLUMN.users
     // A cache fed by API servers sits behind them, next to the data.
-    if (type === 'cache' && incomingFrom(id).some((f) => typeOf(f) === 'api')) return 5
+    if (type === 'cache' && incomingFrom(id).some((f) => typeOf(f) === 'api')) return 6
     return COLUMN[type]
   }
   const ids = ['users', ...city.buildings.map((b) => b.id)]
@@ -26,7 +26,7 @@ export function layoutCity(city: City): { positions: Record<string, XZ>; roads: 
   const positions: Record<string, XZ> = {}
   for (const [col, members] of byColumn) {
     members.forEach((id, row) => {
-      positions[id] = [(col - 3) * CELL, (row - (members.length - 1) / 2) * CELL * 1.25]
+      positions[id] = [(col - 3.5) * CELL, (row - (members.length - 1) / 2) * CELL * 1.25]
     })
   }
   const roads = city.links

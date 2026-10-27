@@ -25,13 +25,16 @@ export type ChaosCard =
   | { id: string; title: string; at: number; kind: 'surge'; multiplier: number }
   | { id: string; title: string; at: number; kind: 'kill'; target: BuildingType }
   | { id: string; title: string; at: number; kind: 'write_spike'; extraWrites: number }
+  | { id: string; title: string; at: number; kind: 'bots'; extraRps: number }
+  | { id: string; title: string; at: number; kind: 'payments_down'; duration: number }
 
 export type Stage = {
   id: StageId
   title: string
   brief: string
   budget: number
-  baseLoad: { rps: number; readRatio: number }
+  /** mediaShare: the part of reads that are photos and other big files */
+  baseLoad: { rps: number; readRatio: number; mediaShare?: number }
   unlocked: BuildingType[]
   wildcard?: BuildingType
   chaos: ChaosCard[]

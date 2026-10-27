@@ -57,5 +57,66 @@ const chatter: Stage = {
   textbookDefaults: {},
 }
 
-export const STAGES: Record<string, Stage> & { shorty: Stage; chatter: Stage } = { shorty, chatter }
-export const STAGE_ORDER: StageId[] = ['shorty', 'chatter']
+const feed: Stage = {
+  id: 'feed',
+  title: 'Feed',
+  brief:
+    'A photo feed. 800 requests per second, nearly all of them people scrolling, and most of those are photos. Keep it up for 30 seconds.',
+  budget: 140,
+  baseLoad: { rps: 800, readRatio: 0.95, mediaShare: 0.7 },
+  unlocked: ['lb', 'api', 'cache', 'sql', 'nosql', 'cdn', 'storage'],
+  chaos: [{ id: 'continent', title: 'A whole continent woke up', at: 15, kind: 'surge', multiplier: 6 }],
+  rivalName: 'Blaze',
+  rivalTaunt: 'More servers. The answer is always more servers.',
+  rivalClass: 'generalist',
+  rivalBlindSpot:
+    'You think more servers fix everything. Use a round robin load balancer, four large API servers and a SQL database with an index. Never build a CDN or object storage: photos go in the database.',
+  rivalScripted: [
+    { kind: 'place', type: 'lb', option: 'round_robin' },
+    { kind: 'place', type: 'api', option: 'large' },
+    { kind: 'place', type: 'api', option: 'large' },
+    { kind: 'place', type: 'api', option: 'large' },
+    { kind: 'place', type: 'api', option: 'large' },
+    { kind: 'place', type: 'sql', option: 'standard' },
+    { kind: 'addon', building: 'sql1', addon: 'index' },
+  ],
+  rivalMaxServed: 0.7,
+  textbookDefaults: { cache: 'behind the API servers, next to the database' },
+}
+
+const ticketRush: Stage = {
+  id: 'ticket_rush',
+  title: 'Ticket Rush',
+  brief:
+    'The boss. A million fans, one concert, tickets on sale now: 3,000 requests per second and a stream of orders that must not be lost. Two chaos cards.',
+  budget: 210,
+  baseLoad: { rps: 3000, readRatio: 0.6 },
+  unlocked: ['lb', 'api', 'cache', 'sql', 'nosql', 'queue', 'worker'],
+  chaos: [
+    { id: 'bots', title: 'A bot army is scalping tickets', at: 10, kind: 'bots', extraRps: 6000 },
+    { id: 'payments', title: 'The payment provider is down', at: 20, kind: 'payments_down', duration: 8 },
+  ],
+  rivalName: 'The Scalper',
+  rivalTaunt: 'Bots are just customers you have not met yet.',
+  rivalClass: 'firefighter',
+  rivalBlindSpot:
+    'You think bots are just more customers and queues are a waste. Use a round robin load balancer, six large API servers and a SQL database with an index. Never build a queue or a rate limiter.',
+  rivalScripted: [
+    { kind: 'place', type: 'lb', option: 'round_robin' },
+    { kind: 'place', type: 'api', option: 'large' },
+    { kind: 'place', type: 'api', option: 'large' },
+    { kind: 'place', type: 'api', option: 'large' },
+    { kind: 'place', type: 'api', option: 'large' },
+    { kind: 'place', type: 'api', option: 'large' },
+    { kind: 'place', type: 'api', option: 'large' },
+    { kind: 'place', type: 'sql', option: 'standard' },
+    { kind: 'addon', building: 'sql1', addon: 'index' },
+  ],
+  rivalMaxServed: 0.65,
+  textbookDefaults: { cache: 'behind the API servers, next to the database' },
+}
+
+export const STAGES: Record<string, Stage> & { shorty: Stage; chatter: Stage; feed: Stage; ticket_rush: Stage } = {
+  shorty, chatter, feed, ticket_rush: ticketRush,
+}
+export const STAGE_ORDER: StageId[] = ['shorty', 'chatter', 'feed', 'ticket_rush']

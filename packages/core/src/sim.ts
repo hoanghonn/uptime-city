@@ -1,6 +1,6 @@
 import { applyAction } from './actions'
 import { autoWire } from './wire'
-import { CACHE_HIT, CATALOG } from './catalog'
+import { BOT_LEAK, CACHE_HIT, CATALOG, CDN_HIT, MEDIA_DB_COST } from './catalog'
 import { CLASSES, capacityMultiplier } from './classes'
 import type { Action, Building, BuildingType, City, HeroClass, Stage } from './types'
 
@@ -20,15 +20,20 @@ export type SimResult = {
 }
 export type SimOptions = { firefight?: { atSecond: number; action: Action } }
 
-/** Traffic in requests per second: normal reads, reads of the one hot key, writes; lat = mean ms so far. */
-type Flow = { n: number; h: number; w: number; lat: number }
-const total = (f: Flow) => f.n + f.h + f.w
-const scale = (f: Flow, k: number): Flow => ({ n: f.n * k, h: f.h * k, w: f.w * k, lat: f.lat })
+/**
+ * Traffic in requests per second: n normal reads, h reads of the one hot key, w writes, m photo reads,
+ * j bot requests (they use capacity but never count as offered or served); lat = mean ms so far.
+ */
+type Flow = { n: number; h: number; w: number; m: number; j: number; lat: number }
+const NONE: Flow = { n: 0, h: 0, w: 0, m: 0, j: 0, lat: 0 }
+const total = (f: Flow) => f.n + f.h + f.w + f.m + f.j
+const real = (f: Flow) => f.n + f.h + f.w + f.m
+const scale = (f: Flow, k: number): Flow => ({ n: f.n * k, h: f.h * k, w: f.w * k, m: f.m * k, j: f.j * k, lat: f.lat })
 function merge(a: Flow | undefined, b: Flow): Flow {
   if (!a) return b
   const ta = total(a), tb = total(b)
   const lat = ta + tb > 0 ? (a.lat * ta + b.lat * tb) / (ta + tb) : 0
-  return { n: a.n + b.n, h: a.h + b.h, w: a.w + b.w, lat }
+  return { n: a.n + b.n, h: a.h + b.h, w: a.w + b.w, m: a.m + b.m, j: a.j + b.j, lat }
 }
 
 function nodeLatency(type: BuildingType, load: number): number {
@@ -39,14 +44,21 @@ function offeredAt(stage: Stage, t: number): Flow {
   let rps = stage.baseLoad.rps
   let hot = 0
   let extraWrites = 0
+  let bots = 0
   for (const c of stage.chaos) {
     if (t < c.at) continue
     if (c.kind === 'surge') rps *= c.multiplier
     if (c.kind === 'hot_key') hot += c.extraRps
     if (c.kind === 'write_spike') extraWrites += c.extraWrites
+    if (c.kind === 'bots') bots += c.extraRps
   }
-  return { n: rps * stage.baseLoad.readRatio, h: hot, w: rps * (1 - stage.baseLoad.readRatio) + extraWrites, lat: 0 }
+  const reads = rps * stage.baseLoad.readRatio
+  const media = reads * (stage.baseLoad.mediaShare ?? 0)
+  return { n: reads - media, h: hot, w: rps * (1 - stage.baseLoad.readRatio) + extraWrites, m: media, j: bots, lat: 0 }
 }
+
+const paymentsDown = (stage: Stage, t: number) =>
+  stage.chaos.some((c) => c.kind === 'payments_down' && t >= c.at && t < c.at + c.duration)
 
 function topoOrder(city: City): string[] {
   const ids = ['users', ...city.buildings.map((b) => b.id)]
@@ -71,6 +83,7 @@ const DT = 1 / TICKS_PER_SECOND
 
 function step(
   city: City, heroClass: HeroClass, offered: Flow, t: number, builtAt: Map<string, number>, down: Set<string>, backlog: Map<string, number>,
+  noWrites: boolean,
 ): TickState {
   const byId = new Map(city.buildings.map((b) => [b.id, b]))
   const incoming = new Map<string, Flow>([['users', offered]])
@@ -87,7 +100,7 @@ function step(
   }
   const forward = (from: string, flow: Flow, weights?: (b: Building) => number, only?: (b: Building) => boolean) => {
     const outs = city.links.filter((l) => l.from === from && byId.has(l.to) && (!only || only(byId.get(l.to)!)))
-    if (outs.length === 0 || total(flow) <= 0) return drop(total(flow))
+    if (outs.length === 0 || total(flow) <= 0) return drop(real(flow))
     const w = outs.map((l) => (weights ? weights(byId.get(l.to)!) : 1))
     const sum = w.reduce((a, b) => a + b, 0) || 1
     outs.forEach((l, i) => incoming.set(l.to, merge(incoming.get(l.to), scale(flow, w[i] / sum))))
@@ -98,7 +111,7 @@ function step(
     if (!flow) continue
     if (id === 'users') { forward(id, flow); continue }
     const b = byId.get(id)!
-    if (down.has(id)) { st.load[id] = 0; drop(total(flow)); continue }
+    if (down.has(id)) { st.load[id] = 0; drop(real(flow)); continue }
     const mult = capacityMultiplier(heroClass, b.type)
     const opt = CATALOG[b.type].options[b.option]
     const t0 = total(flow)
@@ -107,20 +120,33 @@ function step(
       case 'lb':
       case 'api':
       case 'cdn': {
+        let f = flow
+        // a rate-limiting load balancer turns most bots away before they cost anything
+        if (b.type === 'lb' && b.option === 'rate_limit') f = { ...f, j: f.j * BOT_LEAK }
+        if (b.type === 'cdn') {
+          const hits = f.m * Math.min(1, CDN_HIT * CLASSES[heroClass].hitRate)
+          serve(hits, f.lat + nodeLatency('cdn', 0))
+          f = { ...f, m: f.m - hits }
+        }
+        const t1 = total(f)
         const cap = (opt.rps ?? Infinity) * mult
-        const load = t0 / cap
+        const load = t1 / cap
         st.load[id] = load
-        const kept = Math.min(1, cap / t0)
-        drop(t0 * (1 - kept))
-        const out = { ...scale(flow, kept), lat: flow.lat + nodeLatency(b.type, load) }
+        const kept = t1 > 0 ? Math.min(1, cap / t1) : 1
+        drop(real(f) * (1 - kept))
+        const out = { ...scale(f, kept), lat: f.lat + nodeLatency(b.type, load) }
         // least connections health-checks its servers: dead ones get no traffic
         const leastConn = b.type === 'lb' && b.option === 'least_conn'
         const weight = leastConn ? (x: Building) => (down.has(x.id) ? 0 : (CATALOG[x.type].options[x.option].rps ?? 1) * capacityMultiplier(heroClass, x.type)) : undefined
-        const toQueue = city.links.some((l) => l.from === id && byId.get(l.to)?.type === 'queue')
-        if (b.type === 'api' && toQueue) {
-          // writes go to the queue, reads to everything else
-          forward(id, { n: 0, h: 0, w: out.w, lat: out.lat }, undefined, (x) => x.type === 'queue')
-          forward(id, { n: out.n, h: out.h, w: 0, lat: out.lat }, undefined, (x) => x.type !== 'queue')
+        if (b.type === 'api') {
+          // writes go to a queue, photos to object storage, everything else to the data behind
+          const has = (type: BuildingType) => city.links.some((l) => l.from === id && byId.get(l.to)?.type === type)
+          const toQueue = has('queue')
+          const toStorage = has('storage')
+          if (toQueue) forward(id, { ...NONE, w: out.w, lat: out.lat }, undefined, (x) => x.type === 'queue')
+          if (toStorage) forward(id, { ...NONE, m: out.m, lat: out.lat }, undefined, (x) => x.type === 'storage')
+          const rest = { ...out, w: toQueue ? 0 : out.w, m: toStorage ? 0 : out.m }
+          if (total(rest) > 0) forward(id, rest, undefined, (x) => x.type !== 'queue' && x.type !== 'storage')
         } else {
           forward(id, out, weight)
         }
@@ -134,37 +160,45 @@ function step(
         const hn = Math.min(1, CACHE_HIT.normal * hr) * warm
         const hh = Math.min(1, CACHE_HIT.hotKey * hr) * warm
         const lat = flow.lat + nodeLatency('cache', st.load[id])
-        serve(flow.n * hn + flow.h * hh, lat)
-        forward(id, { n: flow.n * (1 - hn), h: flow.h * (1 - hh), w: flow.w, lat })
+        serve((flow.n + flow.m) * hn + flow.h * hh, lat)
+        forward(id, { n: flow.n * (1 - hn), h: flow.h * (1 - hh), w: flow.w, m: flow.m * (1 - hn), j: flow.j * (1 - hn), lat })
         break
       }
-      case 'sql': {
-        const replicas = b.addons.filter((a) => a === 'read_replica').length
-        const index = b.addons.includes('index') ? 2 : 1
-        const readCap = (opt.reads ?? 0) * (1 + replicas) * index * mult
-        const writeCap = (opt.writes ?? 0) * mult
-        const reads = flow.n + flow.h
-        const load = Math.max(reads / readCap, flow.w / writeCap)
-        st.load[id] = load
-        const lat = flow.lat + nodeLatency('sql', load)
-        const ok = Math.min(reads, readCap) + Math.min(flow.w, writeCap)
-        serve(ok, lat)
-        drop(t0 - ok)
-        break
-      }
+      case 'sql':
       case 'nosql': {
-        const nodes = (opt.nodes ?? 1) + b.addons.filter((a) => a === 'nosql_node').length
         const index = b.addons.includes('index') ? 2 : 1
-        const perNode = (opt.nodeReads ?? 0) * index * mult
-        const writeCap = (opt.writes ?? 0) * mult
-        const hotOk = Math.min(flow.h, perNode)
-        const normalOk = Math.min(flow.n, nodes * perNode - hotOk)
-        const load = Math.max(flow.h / perNode, (flow.n + flow.h) / (nodes * perNode), flow.w / writeCap)
-        st.load[id] = load
-        const lat = flow.lat + nodeLatency('nosql', load)
-        const ok = hotOk + normalOk + Math.min(flow.w, writeCap)
+        const writeCap = noWrites ? 0 : (opt.writes ?? 0) * mult
+        // demand in normal-read units: photos are heavy, bots read like anyone else
+        const demand = flow.n + flow.h + flow.j + MEDIA_DB_COST * flow.m
+        let readShare: number
+        let hotShare: number
+        let load: number
+        if (b.type === 'sql') {
+          const replicas = b.addons.filter((a) => a === 'read_replica').length
+          const readCap = (opt.reads ?? 0) * (1 + replicas) * index * mult
+          readShare = demand > 0 ? Math.min(1, readCap / demand) : 1
+          hotShare = readShare
+          load = Math.max(demand / readCap, writeCap > 0 ? flow.w / writeCap : flow.w > 0 ? Infinity : 0)
+        } else {
+          const nodes = (opt.nodes ?? 1) + b.addons.filter((a) => a === 'nosql_node').length
+          const perNode = (opt.nodeReads ?? 0) * index * mult
+          const hotOk = Math.min(flow.h, perNode)
+          hotShare = flow.h > 0 ? hotOk / flow.h : 1
+          const rest = demand - flow.h
+          readShare = rest > 0 ? Math.min(1, (nodes * perNode - hotOk) / rest) : 1
+          load = Math.max(flow.h / perNode, demand / (nodes * perNode), writeCap > 0 ? flow.w / writeCap : flow.w > 0 ? Infinity : 0)
+        }
+        st.load[id] = Number.isFinite(load) ? load : 9.99
+        const lat = flow.lat + nodeLatency(b.type, st.load[id])
+        const ok = (flow.n + flow.m) * readShare + flow.h * hotShare + Math.min(flow.w, writeCap)
         serve(ok, lat)
-        drop(t0 - ok)
+        drop(real(flow) - ok)
+        break
+      }
+      case 'storage': {
+        st.load[id] = 0
+        serve(flow.m, flow.lat + nodeLatency('storage', 0))
+        drop(real(flow) - flow.m)
         break
       }
       case 'queue': {
@@ -174,13 +208,14 @@ function step(
         const space = Math.max(0, cap - held)
         const accepted = Math.min(flow.w, space / DT)
         serve(accepted, flow.lat + (BASE_MS.queue ?? 2))
-        drop(t0 - accepted)
+        drop(real(flow) - accepted)
         held += accepted * DT
         const workers = city.links
           .filter((l) => l.from === id)
           .map((l) => byId.get(l.to))
           .filter((w): w is Building => !!w && w.type === 'worker' && !down.has(w.id) && city.links.some((x) => x.from === w.id && (byId.get(x.to)?.type === 'sql' || byId.get(x.to)?.type === 'nosql')))
-        const drainCap = workers.reduce((s, w) => s + (CATALOG.worker.options[w.option].rps ?? 0) * capacityMultiplier(heroClass, 'worker'), 0)
+        // while payments are down nothing can be written, so the backlog waits
+        const drainCap = noWrites ? 0 : workers.reduce((s, w) => s + (CATALOG.worker.options[w.option].rps ?? 0) * capacityMultiplier(heroClass, 'worker'), 0)
         const drained = Math.min(held, drainCap * DT)
         held -= drained
         backlog.set(id, held)
@@ -190,10 +225,6 @@ function step(
       }
       case 'worker':
         break // fed by its queue above
-      default:
-        // storage arrives with stage 3; until then it passes traffic on untouched
-        st.load[id] = 0
-        forward(id, flow)
     }
   }
   return st
@@ -204,6 +235,8 @@ const LESSONS: Partial<Record<BuildingType, string>> = {
   sql: 'The database was the bottleneck. Read replicas, an index, or a cache in front of it take the pressure off.',
   nosql: 'The database was the bottleneck. With one very popular key, extra nodes do not help; a cache in front does.',
   lb: 'Even the load balancer gave up. That much traffic needs to be stopped earlier.',
+  storage: 'Object storage never runs out, but everything else around it did.',
+  cdn: 'Even the CDN was overwhelmed.',
   cache: 'The cache itself was overwhelmed.',
 }
 
@@ -236,8 +269,8 @@ export function simulate(start: City, stage: Stage, heroClass: HeroClass, opts: 
       if (victim) down.add(victim.id)
     }
     const offered = offeredAt(stage, t)
-    const st = step(city, heroClass, offered, t, builtAt, down, backlog)
-    ticks.push({ t, offered: total(offered), served: st.served, dropped: st.dropped, load: st.load })
+    const st = step(city, heroClass, offered, t, builtAt, down, backlog, paymentsDown(stage, t))
+    ticks.push({ t, offered: real(offered), served: st.served, dropped: st.dropped, load: st.load })
     for (const s of st.samples) samples.push(s)
   }
 

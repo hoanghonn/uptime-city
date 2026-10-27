@@ -58,6 +58,14 @@ describe('parseLocal', () => {
     ])
   })
 
+  it('handles a CDN, object storage and a rate limiting balancer', () => {
+    expect(parseLocal('a CDN, rate limiting balancer and object storage', 'feed', newCity(STAGES.feed, 'generalist'))).toEqual([
+      { kind: 'place', type: 'cdn', option: 'standard' },
+      { kind: 'place', type: 'lb', option: 'rate_limit' },
+      { kind: 'place', type: 'storage', option: 'standard' },
+    ])
+  })
+
   it('understands nothing it should not', () => {
     expect(parseLocal('hello there', 'shorty', newCity(STAGES.shorty, 'generalist'))).toEqual([])
   })

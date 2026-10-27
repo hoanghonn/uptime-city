@@ -1,6 +1,6 @@
 import type { BuildingType, City, Link } from './types'
 
-const ENTRY: BuildingType[] = ['lb', 'cdn', 'cache']
+const ENTRY: BuildingType[] = ['cdn', 'lb', 'cache']
 const DATA: BuildingType[] = ['sql', 'nosql']
 
 /**
@@ -17,6 +17,11 @@ export function autoWire(city: City): City {
     const entry = ENTRY.map((t) => of([t])[0]).find(Boolean)
     if (entry) add('users', entry.id)
   }
+
+  // A CDN sits at the edge, in front of the load balancer.
+  const cdn = of(['cdn'])[0]
+  const firstLb = of(['lb'])[0]
+  if (cdn && firstLb && !links.some((l) => l.from === cdn.id)) add(cdn.id, firstLb.id)
 
   // The front of the city: follow single links from the first load balancer through any caches.
   const lb = of(['lb'])[0]
@@ -40,12 +45,18 @@ export function autoWire(city: City): City {
     for (const w of of(['worker'])) if (!links.some((l) => l.to === w.id)) add(q, w.id)
   }
 
-  // API servers with nowhere to send reads (nothing, or only a queue), and workers, get the only database.
+  // Photos go to the only object storage.
+  const storages = of(['storage'])
+  if (storages.length === 1) {
+    for (const api of of(['api'])) if (!links.some((l) => l.from === api.id && typeOf(l.to) === 'storage')) add(api.id, storages[0].id)
+  }
+
+  // API servers with nowhere to send reads (nothing, or only a queue or storage), and workers, get the only database.
   const dbs = of(DATA)
   if (dbs.length === 1) {
     for (const w of of(['worker'])) if (!links.some((l) => l.from === w.id)) add(w.id, dbs[0].id)
     for (const api of of(['api'])) {
-      if (!links.some((l) => l.from === api.id && typeOf(l.to) !== 'queue')) add(api.id, dbs[0].id)
+      if (!links.some((l) => l.from === api.id && typeOf(l.to) !== 'queue' && typeOf(l.to) !== 'storage')) add(api.id, dbs[0].id)
     }
   }
   return { ...city, links }

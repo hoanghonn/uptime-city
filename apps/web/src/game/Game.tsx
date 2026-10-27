@@ -97,6 +97,10 @@ export default function Game() {
         void browserPlayer.say({ line: `chaos.${card.id}`, voice: 'commentator' })
         void browserPlayer.say({ line: 'firefight.prompt', voice: 'commentator' })
       }
+      // later chaos cards are announced as they hit; the firefight is only for the first
+      for (const card of STAGES[cur.stageId].chaos.slice(1)) {
+        if (cur.phase === 'test' && cur.t < card.at && next.t >= card.at) void browserPlayer.say({ line: `chaos.${card.id}`, voice: 'commentator' })
+      }
       if (cur.phase !== 'result' && next.phase === 'result') {
         void browserPlayer.say({ line: `result.${next.outcome}`, voice: 'commentator' })
       }
@@ -129,7 +133,8 @@ export default function Game() {
   const tick = g.nova ? g.nova.ticks[Math.min(g.nova.ticks.length - 1, Math.round(g.t * 10))] : null
   const rtick = g.rivalSim ? g.rivalSim.ticks[Math.min(g.rivalSim.ticks.length - 1, Math.round(g.t * 10))] : null
   const pct = (x: typeof tick) => (x && x.offered > 0 ? Math.round((x.served / x.offered) * 100) : null)
-  const chaosLive = (g.phase === 'test' || g.phase === 'firefight') && g.t >= (stage.chaos[0]?.at ?? 99)
+  const liveCards = g.phase === 'test' || g.phase === 'firefight' ? stage.chaos.filter((c) => g.t >= c.at) : []
+  const chaosLive = liveCards.length > 0
   const shownCity = useMemo(() => cityAt(g), [g])
   const rivalName = stage.rivalName
 
@@ -169,7 +174,7 @@ export default function Game() {
         <b>{stage.title}</b>
         <span className="coins">{shownCity.coins} coins</span>
         <span className="phase">{g.phase === 'build' ? 'Build' : g.phase === 'briefing' ? 'Briefing' : g.phase === 'result' ? 'Result' : `Stress test ${g.t.toFixed(1)} s`}</span>
-        {chaosLive && <span className="chaos">Chaos card: {stage.chaos[0].title}</span>}
+        {chaosLive && <span className="chaos">Chaos card: {liveCards[liveCards.length - 1].title}</span>}
         {shownCity.wildcardUsed || g.firefightAction || !stage.wildcard ? null : <span className="wild">Wildcard: free {CATALOG[stage.wildcard].name.toLowerCase()}</span>}
         {lowPower && <span className="lowpower" title={`Today's AI budget is used up, so ${HERO_NAME} understands simple typed orders only.`}>Low-power mode: type simple orders</span>}
         <span className="spacer" />

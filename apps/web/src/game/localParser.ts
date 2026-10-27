@@ -36,8 +36,10 @@ export function parseLocal(input: string, stageId: string, city: City): Action[]
     const after = where === 'in front' || where === 'before' ? lb ?? 'users' : api ?? lb ?? 'users'
     return [{ kind: 'insert', type: 'cache', option: 'standard', after, ...(wildcard ? { wildcard: true } : {}) }]
   })
-  take(/ (least connections?|round robin)(?: load)?(?: balancer)?| (?:load )?balancer/, (m) => () => [
-    { kind: 'place', type: 'lb', option: m[1]?.startsWith('least') ? 'least_conn' : 'round_robin' },
+  take(/ (?:a |an )?cdn/, () => () => [{ kind: 'place', type: 'cdn', option: 'standard' }])
+  take(/ (?:an? )?(?:object |blob |photo )storage/, () => () => [{ kind: 'place', type: 'storage', option: 'standard' }])
+  take(/ (least connections?|round robin|rate limit(?:ing|ed)?)(?: load)?(?: balancer)?| (?:load )?balancer/, (m) => () => [
+    { kind: 'place', type: 'lb', option: m[1]?.startsWith('least') ? 'least_conn' : m[1]?.startsWith('rate') ? 'rate_limit' : 'round_robin' },
   ])
   take(new RegExp(` (?:${COUNT} )?(?:more )?(large|big|small|tiny)? ?(?:api )?servers?`), (m) => () =>
     Array.from({ length: count(m[1]) }, () => ({ kind: 'place' as const, type: 'api' as const, option: m[2] === 'small' || m[2] === 'tiny' ? 'small' : 'large' })),

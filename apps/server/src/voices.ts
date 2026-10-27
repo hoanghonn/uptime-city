@@ -23,6 +23,19 @@ export const LINES: Record<string, { voice: VoiceName; text: string }> = {
   },
   'rival.chatter.taunt': { voice: 'rival', text: 'Queues are for people who cannot write fast enough.' },
   'chaos.api_dies': { voice: 'commentator', text: 'Chaos card! One of your API servers just died. Whatever was going there is hitting a wall!' },
+  'stage.feed.brief': {
+    voice: 'commentator',
+    text: 'Stage three, Feed. A photo feed: eight hundred requests a second, and most of them are photos. Big files, big trouble.',
+  },
+  'rival.feed.taunt': { voice: 'rival', text: 'More servers. The answer is always more servers.' },
+  'chaos.continent': { voice: 'commentator', text: 'Chaos card! A whole continent just woke up. Six times the traffic!' },
+  'stage.ticket_rush.brief': {
+    voice: 'commentator',
+    text: 'The boss stage. A million fans, one concert, tickets on sale now. Two chaos cards. Good luck.',
+  },
+  'rival.ticket_rush.taunt': { voice: 'rival', text: 'Bots are just customers you have not met yet.' },
+  'chaos.bots': { voice: 'commentator', text: 'Chaos card! A bot army is scalping tickets. Six thousand fake requests a second!' },
+  'chaos.payments': { voice: 'commentator', text: 'Second chaos card! The payment provider is down. Every order needs somewhere safe to wait!' },
   'test.start': { voice: 'commentator', text: "Traffic incoming! Let's see if these cities hold." },
   'chaos.celebrity': {
     voice: 'commentator',

@@ -24,6 +24,12 @@ export type CatalogEntry = {
 }
 
 export const CACHE_HIT = { hotKey: 0.99, normal: 0.6, warmupSeconds: 1 }
+/** A CDN serves this share of photo requests at the edge. */
+export const CDN_HIT = 0.8
+/** A photo read from a database costs as much as this many normal reads. */
+export const MEDIA_DB_COST = 5
+/** A rate-limiting load balancer lets this share of bot traffic through. */
+export const BOT_LEAK = 0.05
 
 export const CATALOG: Record<BuildingType, CatalogEntry> = {
   lb: {
@@ -31,6 +37,7 @@ export const CATALOG: Record<BuildingType, CatalogEntry> = {
     options: {
       round_robin: { cost: 10, label: 'Round robin', rps: 20000 },
       least_conn: { cost: 15, label: 'Least connections', rps: 20000 },
+      rate_limit: { cost: 20, label: 'Rate limiting', rps: 20000 },
     },
     addons: {},
   },
@@ -73,8 +80,16 @@ export const CATALOG: Record<BuildingType, CatalogEntry> = {
     options: { standard: { cost: 10, label: 'Worker', rps: 400 } },
     addons: {},
   },
-  cdn: { name: 'CDN', options: {}, addons: {} },
-  storage: { name: 'Object storage', options: {}, addons: {} },
+  cdn: {
+    name: 'CDN',
+    options: { standard: { cost: 20, label: 'CDN', rps: 20000 } },
+    addons: {},
+  },
+  storage: {
+    name: 'Object storage',
+    options: { standard: { cost: 10, label: 'Object storage' } },
+    addons: {},
+  },
 }
 
 /** Which building types each type may send traffic to. */
