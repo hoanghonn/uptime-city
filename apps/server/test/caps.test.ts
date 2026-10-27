@@ -30,12 +30,20 @@ describe('run limits', () => {
     expect((await app.inject(cmd('one'))).statusCode).toBe(429)
   })
 
-  it('runs go quiet after 5 minutes and free their slot', () => {
+  it('the default limits allow 30 players at once', () => {
+    const limits = new RunLimits({})
+    for (let i = 0; i < 30; i++) expect(limits.take(`p${i}`, 'command')).toBe('ok')
+    expect(limits.take('p30', 'command')).toBe('city_full')
+  })
+
+  it('runs go quiet after 90 seconds and free their slot', () => {
     let now = 0
     const limits = new RunLimits({ maxRuns: 1, now: () => now })
     expect(limits.take('a', 'command')).toBe('ok')
     expect(limits.take('b', 'command')).toBe('city_full')
-    now = 5 * 60_000 + 1
+    now = 60_000
+    expect(limits.take('b', 'command')).toBe('city_full')
+    now = 90_001
     expect(limits.take('b', 'command')).toBe('ok')
   })
 

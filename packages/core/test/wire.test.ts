@@ -102,3 +102,16 @@ describe('lesson when nothing is connected', () => {
     expect(r.lesson).toMatch(/never reached/)
   })
 })
+
+describe('scriptedRival', () => {
+  it('builds every stage rival from its script, wired and within budget', async () => {
+    const { scriptedRival, STAGE_ORDER } = await import('../src')
+    for (const id of STAGE_ORDER) {
+      const r = scriptedRival(STAGES[id])
+      expect(r.source).toBe('scripted')
+      expect(r.city.buildings.length).toBeGreaterThan(0)
+      expect(r.city.links.some((l) => l.from === 'users')).toBe(true)
+      expect(r.city.coins).toBeGreaterThanOrEqual(0)
+    }
+  })
+})

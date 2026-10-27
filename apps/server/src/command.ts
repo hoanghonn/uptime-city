@@ -18,7 +18,7 @@ export type CommandResult = {
 export const COMMAND_MODEL = 'muse-spark-1.3'
 const COMMS_DOWN = 'Comms are down, type your orders.'
 const MAX_ROUNDS = 6
-const FIREFIGHT_TOOLS = new Set(['place', 'insert', 'addon', 'remove', 'ask_back'])
+const FIREFIGHT_TOOLS = new Set(['place', 'insert', 'addon', 'remove'])
 
 const str = (description: string, values?: string[]) => ({ type: 'string', description, ...(values ? { enum: values } : {}) })
 const fn = (name: string, description: string, properties: Record<string, unknown>, required: string[]) => ({
@@ -88,7 +88,7 @@ Rules:
 - Connect new buildings sensibly unless told otherwise: users -> load balancer -> API servers -> database.
 - If the order is ambiguous in a way that matters (where a cache goes, which of two buildings), call ask_back and nothing else. Never guess.
 - Never spend coins the player did not ask you to spend.
-${phase === 'firefight' ? '- The stress test is running. Only quick fixes: build, insert, add-on or demolish. No rewiring.\n' : ''}- Also reply with one short spoken line (at most 15 words), in character, upbeat. No markdown, no emoji.`
+${phase === 'firefight' ? `- The stress test is running. Make exactly one quick fix: build, insert, add-on or demolish. No rewiring, and no questions: if the order is ambiguous, use the textbook choice${Object.entries(stage.textbookDefaults).map(([k, v]) => ` (${k}: ${v})`).join('')}.\n` : ''}- Also reply with one short spoken line (at most 15 words), in character, upbeat. No markdown, no emoji.`
 }
 
 function toAction(name: string, args: any): Action | null {
@@ -160,6 +160,7 @@ function handleCall(call: any, input: CommandInput, stage: Stage, ctx: { stage: 
     result.rejected.push({ action: { kind: name }, reason: 'I could not make sense of that order' })
     return 'rejected: I could not make sense of that order'
   }
+  if (name === 'ask_back' && input.phase === 'firefight') return 'no time for questions: make the textbook choice'
   if (name === 'ask_back') {
     const choices: string[] = Array.isArray(args.choices) ? args.choices.map(String).slice(0, 3) : []
     const textbook = stage.textbookDefaults[args.topic]

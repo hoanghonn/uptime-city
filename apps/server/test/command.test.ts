@@ -127,6 +127,19 @@ describe('runCommand', () => {
     expect(requests[0].tools.map((t: any) => t.function.name)).not.toContain('link')
   })
 
+  it('the firefight never asks back: it offers no ask_back tool and says to use the textbook placement', async () => {
+    const { client, requests } = fakeClient('Go!', [])
+    await runCommand(client, input(newCity(stage, 'generalist'), 'cache!', 'firefight'))
+    expect(requests[0].tools.map((t: any) => t.function.name)).not.toContain('ask_back')
+    expect(requests[0].messages[0].content).toContain('behind the API servers, next to the database')
+  })
+
+  it('an ask_back that sneaks into a firefight is ignored, not treated as the answer', async () => {
+    const { client } = fakeClient('Where?', [{ name: 'ask_back', args: { question: 'Front or behind?', choices: ['front', 'behind'], topic: 'cache' } }])
+    const r = await runCommand(client, input(newCity(stage, 'generalist'), 'cache!', 'firefight'))
+    expect(r.askBack).toBeUndefined()
+  })
+
   it('submit is reported, not applied as an action', async () => {
     const { client } = fakeClient('Here we go!', [{ name: 'submit', args: {} }])
     const r = await runCommand(client, input(newCity(stage, 'generalist'), 'submit'))

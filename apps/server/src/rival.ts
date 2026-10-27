@@ -1,17 +1,8 @@
-import { applyAction, autoWire, CLASSES, newCity, simulate, type Action, type City, type Stage } from '@uptime/core'
+import { applyAction, autoWire, CLASSES, newCity, scriptedRival, simulate, type Action, type City, type RivalResult, type Stage } from '@uptime/core'
 import { commandSystemPrompt, type ChatClient } from './command'
 
-export type RivalResult = { actions: Action[]; city: City; lines: string[]; source: 'live' | 'scripted' }
+export { scriptedRival, type RivalResult } from '@uptime/core'
 export type RivalOptions = { model: string; timeoutMs?: number }
-
-export function scriptedRival(stage: Stage): RivalResult {
-  let city = newCity(stage, stage.rivalClass)
-  for (const a of stage.rivalScripted) {
-    const r = applyAction(city, a, { stage, heroClass: stage.rivalClass })
-    if (r.ok) city = r.city
-  }
-  return { actions: stage.rivalScripted, city: autoWire(city), lines: [stage.rivalTaunt], source: 'scripted' }
-}
 
 // Muse Spark Open on Baseten often answers tool calls with prose, so the rival returns a JSON plan instead.
 function rivalPrompt(stage: Stage, city: City): string {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { applyAction, autoWire, CATALOG, CLASSES, STAGES, STAGE_ORDER, type City, type HeroClass } from '@uptime/core'
+import { applyAction, autoWire, CATALOG, CLASSES, scriptedRival, STAGES, STAGE_ORDER, type City, type HeroClass } from '@uptime/core'
 import { City3D } from '../city/City3D'
 import { HeroMaker } from '../hero/HeroMaker'
 import { clearHero, loadHero, saveHero, type SavedHero } from '../hero/heroStore'
@@ -56,7 +56,8 @@ export default function Game() {
         try {
           return await postCommand({ stageId: cur.stageId, heroClass: cur.heroClass, city: cur.city, transcript, phase })
         } catch (e) {
-          if (!(e instanceof LowPowerError)) throw e
+          // a full city or a spent budget still lets you play: typed orders are understood locally
+          if (!(e instanceof LowPowerError) && !(e instanceof BusyError)) throw e
           setLowPower(true)
           return localCommand(transcript, cur.stageId, cur.heroClass, cur.city, phase)
         }
@@ -131,8 +132,11 @@ export default function Game() {
       const rival = await postRival(gRef.current.stageId)
       setG((x) => setRival(x, rival))
       void browserPlayer.say(rival.source === 'live' ? { text: rival.lines[0], voice: 'rival' } : { line: `rival.${gRef.current.stageId}.taunt`, voice: 'rival' })
-    } catch (e) {
-      setG((x) => say(x, { who: 'system', text: e instanceof BusyError ? e.message : 'The rival could not connect. Try the stage again.' }))
+    } catch {
+      // whatever went wrong, the stage stays playable against the hand-written rival
+      const rival = scriptedRival(STAGES[gRef.current.stageId])
+      setG((x) => setRival(x, rival))
+      void browserPlayer.say({ line: `rival.${gRef.current.stageId}.taunt`, voice: 'rival' })
     }
   }
 
