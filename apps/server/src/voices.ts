@@ -1,3 +1,4 @@
+import { STAGES } from '@uptime/core'
 export type VoiceName = 'hero' | 'rival' | 'commentator'
 
 /** ElevenLabs premade voices. */
@@ -8,7 +9,7 @@ export const VOICES: Record<VoiceName, { id: string; label: string }> = {
 }
 
 /** Fixed lines, generated once into apps/web/public/lines/<key>.mp3 by scripts/pregen-lines.ts. */
-export const LINES: Record<string, { voice: VoiceName; text: string }> = {
+const HAND_WRITTEN: Record<string, { voice: VoiceName; text: string }> = {
   'hero.ready': { voice: 'hero', text: "Nova here. Tell me what to build, and I'll build it." },
   'hero.comms_down': { voice: 'hero', text: 'Comms are down, type your orders.' },
   'hero.textbook': { voice: 'hero', text: "No answer, so I'm going with the textbook!" },
@@ -46,3 +47,16 @@ export const LINES: Record<string, { voice: VoiceName; text: string }> = {
   'result.lose': { voice: 'commentator', text: 'The rival takes this one. Watch where it broke, and try again.' },
   'result.draw': { voice: 'commentator', text: "Dead heat! Nobody wins this one. Run it back!" },
 }
+
+/** Every stage gets a briefing, a rival taunt and a call for each chaos card; hand-written lines win. */
+function stageLines(): Record<string, { voice: VoiceName; text: string }> {
+  const out: Record<string, { voice: VoiceName; text: string }> = {}
+  for (const st of Object.values(STAGES)) {
+    out[`stage.${st.id}.brief`] = { voice: 'commentator', text: `${st.title}. ${st.brief}`.slice(0, 200) }
+    out[`rival.${st.id}.taunt`] = { voice: 'rival', text: st.rivalTaunt }
+    for (const c of st.chaos) out[`chaos.${c.id}`] = { voice: 'commentator', text: `Chaos card! ${c.title}!` }
+  }
+  return out
+}
+
+export const LINES: Record<string, { voice: VoiceName; text: string }> = { ...stageLines(), ...HAND_WRITTEN }

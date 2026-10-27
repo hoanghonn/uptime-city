@@ -83,8 +83,8 @@ const bossReference: Action[] = [
 describe('boss - Ticket Rush', () => {
   const stage = STAGES.ticket_rush
 
-  it('is the last stage and has two chaos cards', () => {
-    expect(STAGE_ORDER.at(-1)).toBe('ticket_rush')
+  it('is the last campaign stage and has two chaos cards', () => {
+    expect(STAGE_ORDER.filter((id) => STAGES[id].track === 'campaign').at(-1)).toBe('ticket_rush')
     expect(stage.chaos).toHaveLength(2)
   })
 

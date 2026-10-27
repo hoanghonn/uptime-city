@@ -17,6 +17,8 @@ export type SimResult = {
   coinsLeft: number
   worstMoment: { second: number; building: string }
   lesson: string
+  /** the field guide entry that explains the lesson */
+  lessonGuide?: string
 }
 export type SimOptions = { firefight?: { atSecond: number; action: Action } }
 
@@ -77,7 +79,8 @@ function topoOrder(city: City): string[] {
   return order // nodes caught in a loop never get processed, so their traffic is dropped
 }
 
-type TickState = { served: number; dropped: number; load: Record<string, number>; samples: [number, number][] }
+type Cause = 'writes' | 'media' | 'reads'
+type TickState = { served: number; dropped: number; load: Record<string, number>; samples: [number, number][]; cause: Record<string, Cause> }
 
 const DT = 1 / TICKS_PER_SECOND
 
@@ -87,7 +90,7 @@ function step(
 ): TickState {
   const byId = new Map(city.buildings.map((b) => [b.id, b]))
   const incoming = new Map<string, Flow>([['users', offered]])
-  const st: TickState = { served: 0, dropped: 0, load: {}, samples: [] }
+  const st: TickState = { served: 0, dropped: 0, load: {}, samples: [], cause: {} }
   const drop = (count: number) => {
     if (count <= 1e-9) return
     st.dropped += count
@@ -189,6 +192,9 @@ function step(
           load = Math.max(flow.h / perNode, demand / (nodes * perNode), writeCap > 0 ? flow.w / writeCap : flow.w > 0 ? Infinity : 0)
         }
         st.load[id] = Number.isFinite(load) ? load : 9.99
+        // why it is busy: writes past capacity, heavy photo reads, or plain reads
+        const writeLoad = writeCap > 0 ? flow.w / writeCap : flow.w > 0 ? Infinity : 0
+        st.cause[id] = writeLoad >= 1 && writeLoad >= load - 1e-9 ? 'writes' : MEDIA_DB_COST * flow.m > flow.n + flow.h ? 'media' : 'reads'
         const lat = flow.lat + nodeLatency(b.type, st.load[id])
         const ok = (flow.n + flow.m) * readShare + flow.h * hotShare + Math.min(flow.w, writeCap)
         serve(ok, lat)
@@ -249,6 +255,7 @@ export function simulate(start: City, stage: Stage, heroClass: HeroClass, opts: 
   const ticks: Tick[] = []
   const samples: [number, number][] = []
   const backlog = new Map<string, number>()
+  const causes: Record<string, Cause>[] = []
 
   for (let i = 0; i < TEST_SECONDS * TICKS_PER_SECOND; i++) {
     const t = i / TICKS_PER_SECOND
@@ -271,6 +278,7 @@ export function simulate(start: City, stage: Stage, heroClass: HeroClass, opts: 
     const offered = offeredAt(stage, t)
     const st = step(city, heroClass, offered, t, builtAt, down, backlog, paymentsDown(stage, t))
     ticks.push({ t, offered: real(offered), served: st.served, dropped: st.dropped, load: st.load })
+    causes.push(st.cause)
     for (const s of st.samples) samples.push(s)
   }
 
@@ -282,21 +290,34 @@ export function simulate(start: City, stage: Stage, heroClass: HeroClass, opts: 
   const killAt = kills[0]?.at
   const deadServerHurt = killAt !== undefined && worst.dropped > 0 && worst.t >= killAt
     && city.buildings.some((b) => b.type === 'lb' && b.option === 'round_robin')
+  const cause = causes[ticks.indexOf(worst)]?.[worstBuilding]
+  const [lesson, lessonGuide] = deadServerHurt
+    ? [DEAD_SERVER, 'load-balancing']
+    : worstType === 'sql' || worstType === 'nosql'
+      ? DB_LESSONS[cause ?? 'reads']
+      : worstType
+        ? [LESSONS[worstType] ?? 'Something gave way under pressure.', LESSON_GUIDE[worstType]]
+        : worst.dropped > 0
+          ? ['Traffic never reached your city. Connect the users to a load balancer, and the API servers to a database.', 'approach']
+          : ['Your city held everything. Nicely done.', undefined]
   return {
     ticks,
     servedPct: offeredSum > 0 ? servedSum / offeredSum : 0,
     p95Ms: percentile(samples, 0.95),
     coinsLeft: city.coins,
     worstMoment: { second: worst.dropped > 0 ? worst.t : 0, building: worstBuilding },
-    lesson: deadServerHurt
-      ? 'When a server died, round robin kept sending it its share of the traffic. A least connections balancer routes around dead servers, and a spare server soaks up the rest.'
-      : worstType
-      ? LESSONS[worstType] ?? 'Something gave way under pressure.'
-      : worst.dropped > 0
-        ? 'Traffic never reached your city. Connect the users to a load balancer, and the API servers to a database.'
-        : 'Your city held everything. Nicely done.',
+    lesson,
+    ...(lessonGuide ? { lessonGuide } : {}),
   }
 }
+
+const DEAD_SERVER = 'When a server died, round robin kept sending it its share of the traffic. A least connections balancer routes around dead servers, and a spare server soaks up the rest.'
+const DB_LESSONS: Record<Cause, [string, string]> = {
+  writes: ['The database could not keep up with the writes. A queue takes them in safely and lets workers catch up; NoSQL takes writes much faster than SQL.', 'queues'],
+  media: ['Big files were going through the database, and each one costs as much as many small reads. Object storage holds them, and a CDN serves them close to the users.', 'storage'],
+  reads: ['The database ran out of reads. An index makes each read cheaper, read replicas add more, and a cache in front stops repeats from reaching it at all.', 'indexes'],
+}
+const LESSON_GUIDE: Partial<Record<BuildingType, string>> = { api: 'caching', lb: 'load-balancing', cache: 'caching', cdn: 'cdn', storage: 'storage' }
 
 function percentile(samples: [number, number][], p: number): number {
   const sorted = [...samples].sort((a, b) => a[0] - b[0])

@@ -11,6 +11,14 @@ It is a way to learn system design by doing the thing you can't do safely at wor
 
 Built for the Meta Global AI Developer Hackathon (Cerebral Valley, October-November 2026), Startups track, by CandiVision.
 
+## What's inside
+
+- **Campaign, 4 stages:** Shorty (a URL shortener), Chatter (a chat app where a server dies), Feed (a photo feed and a traffic surge) and the boss, Ticket Rush (a bot army, then the payment provider goes down).
+- **11 classic system design interview problems:** Pastebox (paste sharing), Gatekeeper (an API rate limiter), Chirp (a Twitter-style timeline), Suggest (typeahead search), Seek (search), Nearby (places near you), StreamTube (video streaming), Driftbox (file sync), Crawlbot (a web crawler), Ridewave (ride hailing) and Feedline (a news feed).
+- **A field guide of 15 topics:** load balancing, caching, CDNs, partitioning, consistent hashing, indexes, replication, SQL or NoSQL, the CAP trade-off, queues, object storage, proxies, push versus polling, how to approach a design and what makes a system good. It opens from the briefing, from the build list and from the lesson on the result screen.
+
+The problems are the well-known ones that system design interviews keep coming back to; every brief, number, rival and explanation in this game is written from scratch.
+
 ## How to play
 
 1. Pick your hero's class. Every class has the same total power; they differ in shape (Data Keeper, Edge Runner, Firefighter, Generalist).

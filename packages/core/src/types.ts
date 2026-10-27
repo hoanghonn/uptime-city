@@ -1,6 +1,6 @@
 export type BuildingType = 'lb' | 'api' | 'cache' | 'sql' | 'nosql' | 'queue' | 'worker' | 'cdn' | 'storage'
 export type HeroClass = 'data_keeper' | 'edge_runner' | 'firefighter' | 'generalist'
-export type StageId = 'shorty' | 'chatter' | 'feed' | 'ticket_rush'
+export type StageId = string
 
 export type Building = { id: string; type: BuildingType; option: string; addons: string[] }
 export type Link = { from: string; to: string }
@@ -45,6 +45,12 @@ export type Stage = {
   rivalScripted: Action[]
   rivalMaxServed: number
   textbookDefaults: Record<string, string>
+  /** a build that should clear the stage; tests check it beats the scripted rival */
+  reference?: Action[]
+  /** field guide entries that explain this stage */
+  guide?: string[]
+  /** 'campaign' stages form the main path; 'classic' ones are the well-known interview problems */
+  track?: 'campaign' | 'classic'
 }
 
 export type ActionContext = { stage: Stage; heroClass: HeroClass }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { applyAction, autoWire, CATALOG, CLASSES, scriptedRival, STAGES, STAGE_ORDER, type City, type HeroClass } from '@uptime/core'
+import { applyAction, autoWire, CATALOG, CLASSES, guideEntry, guideFor, scriptedRival, STAGES, STAGE_ORDER, type City, type HeroClass } from '@uptime/core'
+import { GuideModal } from './Guide'
 import { City3D } from '../city/City3D'
 import { HeroMaker } from '../hero/HeroMaker'
 import { clearHero, loadHero, saveHero, type SavedHero } from '../hero/heroStore'
@@ -39,6 +40,8 @@ export default function Game() {
   const HERO_NAME = hero?.nickname ?? 'Nova'
   const chooseHero = (h: SavedHero | null) => { setHero(h); if (h) saveHero(h); else clearHero() }
   const [lowPower, setLowPower] = useState(false)
+  const [guide, setGuide] = useState<string | null>(null)
+  const guideModal = guide ? <GuideModal id={guide} onOpen={setGuide} onClose={() => setGuide(null)} /> : null
   const lowPowerRef = useRef(false)
   lowPowerRef.current = lowPower
   useEffect(() => { void getStatus().then((m) => setLowPower(m === 'low-power')) }, [])
@@ -165,17 +168,28 @@ export default function Game() {
             </button>
           ))}
         </div>
-        <h3 className="section">Stages</h3>
-        <div className="stages">
-          {STAGE_ORDER.map((id, n) => (
-            <button key={id} className="stage" onClick={() => begin(id)}>
-              <span className="num">Stage {n + 1}</span>
-              <b>{STAGES[id].title}</b>
-              <span>{STAGES[id].brief}</span>
-              {g.cleared[id] && <span className="cleared">Cleared</span>}
-            </button>
-          ))}
+        {(['campaign', 'classic'] as const).map((track) => (
+          <div key={track}>
+            <h3 className="section">{track === 'campaign' ? 'Campaign' : 'Classic system design interview problems'}</h3>
+            <div className="stages">
+              {STAGE_ORDER.filter((id) => STAGES[id].track === track).map((id, n) => (
+                <button key={id} className="stage" onClick={() => begin(id)}>
+                  <span className="num">{track === 'campaign' ? `Stage ${n + 1}` : `Problem ${n + 1}`}</span>
+                  <b>{STAGES[id].title}</b>
+                  <span>{STAGES[id].brief}</span>
+                  {g.cleared[id] && <span className="cleared">Cleared</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+        <h3 className="section">Field guide</h3>
+        <div className="topics">
+          <button className="topic" onClick={() => setGuide('approach')}>How to approach a design</button>
+          <button className="topic" onClick={() => setGuide('qualities')}>What makes a system good</button>
+          <button className="topic" onClick={() => setGuide('load-balancing')}>All topics</button>
         </div>
+        {guideModal}
       </div>
     )
   }
@@ -206,7 +220,8 @@ export default function Game() {
           <div className="waiting">{g.phase === 'briefing' ? '' : `${rivalName} is building...`}</div>
         )}
 
-        <Palette stageId={g.stageId} city={shownCity} heroClass={g.heroClass} phase={g.phase} onBuild={(a) => setG((x) => (x.thinking ? x : clickBuild(x, a)))} />
+        <Palette stageId={g.stageId} city={shownCity} heroClass={g.heroClass} phase={g.phase} onBuild={(a) => setG((x) => (x.thinking ? x : clickBuild(x, a)))} onLearn={(type) => { const e = guideFor(type)[0]; if (e) setGuide(e.id) }} />
+        {guideModal}
 
         {g.phase === 'briefing' && (
           <div className="overlay">
@@ -216,6 +231,11 @@ export default function Game() {
               <p>{stage.brief}</p>
               <p>Budget: <b>{g.city.coins} coins</b>. One chaos card will hit during the test. You get one shouted command to fix it.</p>
               <p className="rival-line">{rivalName}: "{stage.rivalTaunt}"</p>
+              {stage.guide && (
+                <p className="learn">Learn first: {stage.guide.map((id) => (
+                  <button key={id} className="topic" onClick={() => setGuide(id)}>{guideEntry(id)?.title}</button>
+                ))}</p>
+              )}
               <p className="hint">Hold <kbd>Space</kbd> and talk to {HERO_NAME}. For example: "Round robin balancer, two large servers, SQL with an index."</p>
               <button className="primary" onClick={build}>Start building</button>
             </div>
@@ -262,7 +282,9 @@ export default function Game() {
                   <tr><td>Coins left</td><td>{g.nova.coinsLeft}</td><td>{g.rivalSim.coinsLeft}</td></tr>
                 </tbody>
               </table>
-              <p className="lesson">{g.nova.lesson}</p>
+              <p className="lesson">{g.nova.lesson}{g.nova.lessonGuide && guideEntry(g.nova.lessonGuide) && (
+                <> <button className="topic" onClick={() => setGuide(g.nova!.lessonGuide!)}>Read: {guideEntry(g.nova.lessonGuide)!.title}</button></>
+              )}</p>
               <div className="row">
                 <button className="primary" onClick={() => begin(g.stageId)}>Play again</button>
                 {g.nova.worstMoment.second > 0 && <button className="ghost" onClick={() => setG((x) => startReplay(x))}>Watch where it broke</button>}
