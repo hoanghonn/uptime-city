@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { applyAction, autoWire, CATALOG, CLASSES, guideEntry, guideFor, rivalProgress, scriptedRival, STAGES, STAGE_ORDER, type City, type HeroClass } from '@uptime/core'
+import { applyAction, autoWire, CATALOG, CLASSES, guideEntry, guideFor, rivalProgress, scriptedRival, windowServed, STAGES, STAGE_ORDER, type City, type HeroClass } from '@uptime/core'
 import { GuideModal } from './Guide'
 import { City3D } from '../city/City3D'
 import { HeroMaker } from '../hero/HeroMaker'
@@ -10,7 +10,7 @@ import { BusyError, getStatus, LowPowerError, newRun, postCommand, postRival } f
 import { localCommand } from './localParser'
 import { Palette } from './Palette'
 import {
-  ASK_BACK_MS, FIREFIGHT_MS, advance, clickBuild, startReplay, answerText, applyCommand, applyFirefight, beginBuild, initialGame, say, setRival, setThinking, startStage,
+  ASK_BACK_MS, FIREFIGHT_MS, advance, checklist, chooseSide, clickBuild, startReplay, answerText, applyCommand, applyFirefight, beginBuild, initialGame, say, setRival, setThinking, startStage,
   startTest, tickClock, toMap, type Game as G,
 } from './flow'
 import './game.css'
@@ -136,6 +136,25 @@ export default function Game() {
     setG((x) => startStage(x, stageId, heroClass))
     void browserPlayer.say({ line: `stage.${stageId}.brief`, voice: 'commentator' })
   }
+  const pickSide = (side: number) => {
+    buildStart.current = performance.now()
+    setBuildSeconds(0)
+    setG((x) => chooseSide(x, side))
+    void browserPlayer.say({ line: 'hero.ready', voice: 'hero' })
+  }
+  const tryOtherSide = () => {
+    const side = gRef.current.side ?? 0
+    newRun()
+    setG((x) => chooseSide(startStage(x, x.stageId, heroClass), 1 - side))
+    buildStart.current = performance.now()
+  }
+  const nextLesson = () => {
+    const lessons = STAGE_ORDER.filter((id) => STAGES[id].track === 'academy')
+    const next = lessons[lessons.indexOf(gRef.current.stageId) + 1]
+    if (next) begin(next)
+    else setG((x) => toMap(x))
+  }
+
   const build = async () => {
     buildStart.current = performance.now()
     setBuildSeconds(0)
@@ -160,7 +179,7 @@ export default function Game() {
   const chaosLive = liveCards.length > 0
   const shownCity = useMemo(() => cityAt(g), [g])
   const rivalName = stage.rivalName
-  const rivalPace = g.rival && g.phase === 'build' ? rivalProgress(g.rival.actions, stage, buildSeconds) : null
+  const rivalPace = g.rival && g.phase === 'build' && !stage.experiment ? rivalProgress(g.rival.actions, stage, buildSeconds) : null
   const rivalCity = rivalPace && !rivalPace.done ? rivalPace.city : g.rival?.city
 
   if (g.phase === 'map') {
@@ -180,13 +199,13 @@ export default function Game() {
             </button>
           ))}
         </div>
-        {(['campaign', 'classic'] as const).map((track) => (
+        {(['academy', 'campaign', 'classic'] as const).map((track) => (
           <div key={track}>
-            <h3 className="section">{track === 'campaign' ? 'Campaign' : 'Classic system design interview problems'}</h3>
+            <h3 className="section">{track === 'academy' ? 'Academy: one trade-off per lesson. Start here.' : track === 'campaign' ? 'Campaign' : 'Classic system design interview problems'}</h3>
             <div className="stages">
               {STAGE_ORDER.filter((id) => STAGES[id].track === track).map((id, n) => (
                 <button key={id} className="stage" onClick={() => begin(id)}>
-                  <span className="num">{track === 'campaign' ? `Stage ${n + 1}` : `Problem ${n + 1}`}</span>
+                  <span className="num">{track === 'academy' ? `Lesson ${n + 1}` : track === 'campaign' ? `Stage ${n + 1}` : `Problem ${n + 1}`}</span>
                   <b>{STAGES[id].title}</b>
                   <span>{STAGES[id].brief}</span>
                   {g.cleared[id] && <span className="cleared">Cleared</span>}
@@ -225,9 +244,16 @@ export default function Game() {
       </header>
 
       <main className="arena">
+        {stage.experiment && g.side !== null && (g.phase === 'build' || g.phase === 'briefing') && (
+          <div className="checklist">
+            <b>Build: {stage.experiment.choices[g.side].label}</b>
+            {checklist(g).map((i) => <div key={i.label} className={i.done ? 'check done' : 'check'}>{i.done ? '✓' : '○'} {i.label}</div>)}
+            {checklist(g).every((i) => i.done) && <div className="ready">Ready. Say "submit" or press Submit.</div>}
+          </div>
+        )}
         <City3D city={shownCity} tick={tick} chaos={g.phase === 'firefight'} label={`${HERO_NAME} (you)${pct(tick) !== null ? ` · ${pct(tick)}%` : ''}`} accent="#5eead4" />
         {g.rival ? (
-          <City3D city={rivalCity!} tick={rtick} chaos={g.phase === 'firefight'} label={`${rivalName}${pct(rtick) !== null ? ` · ${pct(rtick)}%` : rivalPace && !rivalPace.done ? ` · building ${rivalPace.built} of ${rivalPace.total}` : ''}`} accent="#f87171" />
+          <City3D city={rivalCity!} tick={rtick} chaos={g.phase === 'firefight'} label={`${stage.experiment && g.side !== null ? `Other choice: ${stage.experiment.choices[1 - g.side].label}` : rivalName}${pct(rtick) !== null ? ` · ${pct(rtick)}%` : rivalPace && !rivalPace.done ? ` · building ${rivalPace.built} of ${rivalPace.total}` : ''}`} accent="#f87171" />
         ) : (
           <div className="waiting">{g.phase === 'briefing' ? '' : `${rivalName} is building...`}</div>
         )}
@@ -241,15 +267,31 @@ export default function Game() {
               <span className="num">Briefing</span>
               <h2>{stage.title}</h2>
               <p>{stage.brief}</p>
-              <p>Budget: <b>{g.city.coins} coins</b>. One chaos card will hit during the test. You get one shouted command to fix it.</p>
-              <p className="rival-line">{rivalName}: "{stage.rivalTaunt}"</p>
+              {!stage.experiment && <p>Budget: <b>{g.city.coins} coins</b>. One chaos card will hit during the test. You get one shouted command to fix it.</p>}
+              {!stage.experiment && <p className="rival-line">{rivalName}: "{stage.rivalTaunt}"</p>}
               {stage.guide && (
                 <p className="learn">Learn first: {stage.guide.map((id) => (
                   <button key={id} className="topic" onClick={() => setGuide(id)}>{guideEntry(id)?.title}</button>
                 ))}</p>
               )}
               <p className="hint">Hold <kbd>Space</kbd> and talk to {HERO_NAME}. For example: "Round robin balancer, two large servers, SQL with an index."</p>
-              <button className="primary" onClick={build}>Start building</button>
+              {stage.experiment ? (
+                <>
+                  <h3 className="question">{stage.experiment.question}</h3>
+                  <div className="sides">
+                    {stage.experiment.choices.map((c, i) => (
+                      <button key={c.label} className="side" onClick={() => pickSide(i)}>
+                        <b>{c.label}</b>
+                        <span>{c.pitch}</span>
+                        <span className="num">Build this one</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="hint">You build your pick; the other one is built on the right. Then the same traffic hits both.</p>
+                </>
+              ) : (
+                <button className="primary" onClick={build}>Start building</button>
+              )}
             </div>
           </div>
         )}
@@ -281,7 +323,34 @@ export default function Game() {
           </div>
         )}
 
-        {g.phase === 'result' && g.nova && g.rivalSim && (
+        {g.phase === 'result' && g.nova && g.rivalSim && stage.experiment && g.side !== null && (
+          <div className="overlay">
+            <div className="card result experiment">
+              <span className="num">Experiment result</span>
+              <h2>{stage.experiment.question}</h2>
+              <table>
+                <thead><tr><th /><th>{stage.experiment.choices[g.side].label} (yours)</th><th>{stage.experiment.choices[1 - g.side].label}</th></tr></thead>
+                <tbody>
+                  {stage.experiment.moments.map((m) => {
+                    const a = windowServed(g.nova!, m.from, m.to)
+                    const b = windowServed(g.rivalSim!, m.from, m.to)
+                    return <tr key={m.label}><td>{m.label}</td><td className={a > b + 0.01 ? 'better' : ''}>{Math.round(a * 100)}% served</td><td className={b > a + 0.01 ? 'better' : ''}>{Math.round(b * 100)}% served</td></tr>
+                  })}
+                  <tr><td>Coins spent</td><td>{stage.budget - g.nova.coinsLeft}</td><td>{stage.budget - g.rivalSim.coinsLeft}</td></tr>
+                </tbody>
+              </table>
+              <p className="lesson"><b>The trade-off.</b> {stage.experiment.tradeoff}</p>
+              <div className="row">
+                <button className="primary" onClick={nextLesson}>Next lesson</button>
+                <button className="ghost" onClick={tryOtherSide}>Build the other one</button>
+                {g.nova.worstMoment.second > 0 && <button className="ghost" onClick={() => setG((x) => startReplay(x))}>Watch where it broke</button>}
+                <button className="ghost" onClick={() => setG((x) => toMap(x))}>Stage map</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {g.phase === 'result' && g.nova && g.rivalSim && !stage.experiment && (
           <div className="overlay">
             <div className={`card result ${g.outcome}`}>
               <span className="num">{g.outcome === 'win' ? 'Stage clear' : g.outcome === 'lose' ? `${rivalName} wins` : 'Dead heat'}</span>

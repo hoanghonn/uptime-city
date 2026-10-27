@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { applyAction, autoWire, newCity, STAGES, type Action, type City } from '@uptime/core'
 import {
-  ASK_BACK_MS, FIREFIGHT_MS, advance, clickBuild, replayWindow, startReplay, applyCommand, applyFirefight, beginBuild, initialGame, retry, setRival, setThinking,
+  ASK_BACK_MS, FIREFIGHT_MS, advance, checklist, chooseSide, clickBuild, replayWindow, startReplay, applyCommand, applyFirefight, beginBuild, initialGame, retry, setRival, setThinking,
   startStage, startTest, tickClock, type Game,
 } from './flow'
 
@@ -167,5 +167,41 @@ describe('click to build', () => {
     expect(g.phase).toBe('test')
     expect(g.firefightUsed).toBe(true)
     expect(g.nova!.servedPct).toBeGreaterThan(0.85)
+  })
+})
+
+describe('academy experiments', () => {
+  it('picking a side builds the other choice on the right and remembers your pick', () => {
+    let g = startStage(initialGame(), 'bigger_or_more', 'generalist')
+    g = chooseSide(g, 0)
+    expect(g.phase).toBe('build')
+    expect(g.side).toBe(0)
+    expect(g.rival?.source).toBe('scripted')
+    expect(g.rival?.city.buildings.filter((b) => b.type === 'api')).toHaveLength(5)
+  })
+
+  it('there is no firefight pause in an experiment, and the test runs to the end', () => {
+    let g = chooseSide(startStage(initialGame(), 'bigger_or_more', 'generalist'), 0)
+    g = startTest(g)
+    g = advance(g, 25)
+    expect(g.phase).toBe('test')
+    g = advance(g, 10)
+    expect(g.phase).toBe('result')
+  })
+
+  it('a stage with no chaos card never pauses for a firefight', () => {
+    let g = chooseSide(startStage(initialGame(), 'path', 'generalist'), 0)
+    g = advance(startTest(g), 31)
+    expect(g.phase).toBe('result')
+  })
+
+  it('the checklist ticks off what you have built', () => {
+    const g = chooseSide(startStage(initialGame(), 'bigger_or_more', 'generalist'), 0)
+    const before = checklist(g)
+    expect(before.map((i) => i.label)).toEqual(['Load balancer: least connections', '2 x API server: large', 'SQL database', 'Index on the SQL database'])
+    expect(before.every((i) => !i.done)).toBe(true)
+    let h = clickBuild(g, { kind: 'place', type: 'lb', option: 'least_conn' })
+    h = clickBuild(h, { kind: 'place', type: 'api', option: 'large' })
+    expect(checklist(h).map((i) => i.done)).toEqual([true, false, false, false])
   })
 })

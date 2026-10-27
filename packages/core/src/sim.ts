@@ -338,3 +338,10 @@ export function compare(a: SimResult, b: SimResult): -1 | 0 | 1 {
   if (a.coinsLeft !== b.coinsLeft) return a.coinsLeft > b.coinsLeft ? 1 : -1
   return 0
 }
+
+/** The share of requests served between two seconds of the test. */
+export function windowServed(r: SimResult, from: number, to: number): number {
+  const ticks = r.ticks.filter((t) => t.t >= from - 1e-9 && t.t < to - 1e-9)
+  const offered = ticks.reduce((s, t) => s + t.offered, 0)
+  return offered > 0 ? ticks.reduce((s, t) => s + t.served, 0) / offered : 1
+}

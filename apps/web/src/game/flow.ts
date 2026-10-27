@@ -35,6 +35,8 @@ export type Game = {
   log: LogLine[]
   /** end of the replay window, while replaying */
   replayEnd: number
+  /** Academy: which of the two designs the player picked */
+  side: number | null
 }
 
 export type Effect = { type: 'answer'; text: string } | null
@@ -43,7 +45,7 @@ export function initialGame(): Game {
   return {
     phase: 'map', stageId: 'shorty', heroClass: 'generalist', city: newCity(STAGES.shorty, 'generalist'), rival: null,
     thinking: false, askBack: null, t: 0, nova: null, rivalSim: null, firefight: null, firefightUsed: false,
-    firefightAction: null, outcome: null, cleared: {}, log: [], replayEnd: 0,
+    firefightAction: null, outcome: null, cleared: {}, log: [], replayEnd: 0, side: null,
   }
 }
 
@@ -71,8 +73,11 @@ export function applyCommand(g: Game, res: CommandResponse, transcript: string):
 /** Builds the answer transcript for an ask-back choice. */
 export const answerText = (original: string, choice: string) => `${original} - ${choice}`
 
+/** When the test pauses for the firefight command; never, for experiments and stages without chaos. */
 function chaosAt(stageId: string): number {
-  return Math.min(...STAGES[stageId].chaos.map((c) => c.at), TEST_SECONDS)
+  const stage = STAGES[stageId]
+  if (stage.firefight === false || stage.chaos.length === 0) return Infinity
+  return Math.min(...stage.chaos.map((c) => c.at))
 }
 
 export function startTest(g: Game): Game {
@@ -169,4 +174,53 @@ export function clickBuild(g: Game, action: Action): Game {
   const r = applyAction(g.city, action, { stage: STAGES[g.stageId], heroClass: g.heroClass })
   if (!r.ok) return say(g, { who: 'system', text: `Couldn't do that: ${r.reason}` })
   return say({ ...g, city: autoWire(r.city) }, { who: 'you', text: `Built: ${describeAction(g, action)}` })
+}
+
+/** Academy: build the other design on the right, and start building yours. */
+export function chooseSide(g: Game, side: number): Game {
+  const stage = STAGES[g.stageId]
+  const other = stage.experiment?.choices[1 - side]
+  if (!other || g.phase !== 'briefing') return g
+  let city = newCity(stage, 'generalist')
+  for (const a of other.build) {
+    const r = applyAction(city, a, { stage, heroClass: 'generalist' })
+    if (r.ok) city = autoWire(r.city)
+  }
+  return { ...g, phase: 'build', side, rival: { city, lines: [], source: 'scripted', actions: other.build } }
+}
+
+export type CheckItem = { label: string; done: boolean }
+
+/** Academy: what your chosen design needs, ticked off as it gets built. */
+export function checklist(g: Game): CheckItem[] {
+  const stage = STAGES[g.stageId]
+  const choice = g.side === null ? undefined : stage.experiment?.choices[g.side]
+  if (!choice) return []
+  const items: CheckItem[] = []
+  const need = new Map<string, { type: string; option: string; n: number }>()
+  for (const a of choice.build) {
+    if (a.kind !== 'place') continue
+    const k = `${a.type}.${a.option}`
+    need.set(k, { type: a.type, option: a.option, n: (need.get(k)?.n ?? 0) + 1 })
+  }
+  for (const { type, option, n } of need.values()) {
+    const entry = CATALOG[type as keyof typeof CATALOG]
+    const have = g.city.buildings.filter((b) => b.type === type && b.option === option).length
+    const opt = Object.keys(entry.options).length > 1 ? `: ${entry.options[option].label.toLowerCase()}` : ''
+    items.push({ label: `${n > 1 ? `${n} x ` : ''}${entry.name}${opt}`, done: have >= n })
+  }
+  for (const a of choice.build) {
+    if (a.kind === 'addon') {
+      const b = g.city.buildings.find((x) => x.type === a.building.replace(/\d+$/, ''))
+      const name = CATALOG[a.building.replace(/\d+$/, '') as keyof typeof CATALOG].name
+      items.push({ label: `${CATALOG[a.building.replace(/\d+$/, '') as keyof typeof CATALOG].addons[a.addon].label} on the ${name}`, done: !!b && b.addons.includes(a.addon) })
+    }
+    if (a.kind === 'insert' && a.type === 'cache') {
+      const front = a.after.startsWith('lb')
+      const placed = g.city.buildings.find((b) => b.type === 'cache')
+      const feeders = placed ? g.city.links.filter((l) => l.to === placed.id).map((l) => l.from) : []
+      items.push({ label: front ? 'Cache in front of the servers' : 'Cache behind the servers', done: !!placed && feeders.some((f) => (front ? f.startsWith('lb') : f.startsWith('api'))) })
+    }
+  }
+  return items
 }

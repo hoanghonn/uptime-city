@@ -1,3 +1,4 @@
+import { ACADEMY } from './academy'
 import { CLASSICS } from './classics'
 import type { Stage, StageId } from './types'
 
@@ -122,6 +123,6 @@ for (const s of campaign) s.track = 'campaign'
 
 export const STAGES: Record<string, Stage> & { shorty: Stage; chatter: Stage; feed: Stage; ticket_rush: Stage } = {
   shorty, chatter, feed, ticket_rush: ticketRush,
-  ...Object.fromEntries(CLASSICS.map((s) => [s.id, s])),
+  ...Object.fromEntries([...ACADEMY, ...CLASSICS].map((s) => [s.id, s])),
 }
-export const STAGE_ORDER: StageId[] = [...campaign, ...CLASSICS].map((s) => s.id)
+export const STAGE_ORDER: StageId[] = [...ACADEMY, ...campaign, ...CLASSICS].map((s) => s.id)

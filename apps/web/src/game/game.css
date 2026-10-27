@@ -105,3 +105,14 @@ kbd { background: #1e293b; border: 1px solid #334155; border-bottom-width: 2px; 
 .pal-pro { color: #86efac; font-size: 11px; line-height: 1.3; }
 .pal-con { color: #fca5a5; font-size: 11px; line-height: 1.3; }
 .pal-why { color: #fde68a; font-size: 11px; }
+.question { font-size: 18px; margin: 12px 0 8px; color: #5eead4; }
+.sides { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.side { text-align: left; background: #0f2147; border: 1px solid #2c4a80; border-radius: 12px; padding: 14px; color: #e2e8f0; display: flex; flex-direction: column; gap: 6px; }
+.side:hover { border-color: #5eead4; }
+.side b { font-size: 16px; }
+.checklist { position: absolute; top: 48px; left: 12px; z-index: 30; background: rgba(5, 11, 26, 0.88); border: 1px solid #1e3358; border-radius: 10px; padding: 10px 12px; font-size: 13px; display: flex; flex-direction: column; gap: 3px; max-width: 300px; }
+.check { color: #94a3b8; }
+.check.done { color: #86efac; }
+.ready { color: #fde68a; margin-top: 4px; font-weight: 600; }
+td.better { color: #86efac; font-weight: 700; }
+.result.experiment { border-color: #5eead4; width: min(680px, 92vw); }

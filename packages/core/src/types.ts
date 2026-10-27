@@ -50,7 +50,20 @@ export type Stage = {
   /** field guide entries that explain this stage */
   guide?: string[]
   /** 'campaign' stages form the main path; 'classic' ones are the well-known interview problems */
-  track?: 'campaign' | 'classic'
+  track?: 'academy' | 'campaign' | 'classic'
+  /** false: no pause for a firefight command at the chaos card (Academy experiments) */
+  firefight?: boolean
+  /** Academy only: the question, the two designs, and the moments to compare */
+  experiment?: Experiment
+}
+
+export type Experiment = {
+  question: string
+  /** true when each choice should win at least one moment */
+  twoSided: boolean
+  tradeoff: string
+  choices: { label: string; pitch: string; build: Action[] }[]
+  moments: { label: string; from: number; to: number }[]
 }
 
 export type ActionContext = { stage: Stage; heroClass: HeroClass }
