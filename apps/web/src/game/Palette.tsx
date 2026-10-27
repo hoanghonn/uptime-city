@@ -23,14 +23,16 @@ export function Palette({ stageId, city, heroClass, phase, onBuild, onLearn }: P
               key={item.label}
               className="pal-item"
               disabled={item.disabled}
-              title={item.disabled ? item.reason : item.note}
+              title={item.disabled ? item.reason : undefined}
               onClick={() => item.action && onBuild(item.action)}
             >
               <span className="pal-row">
                 <span className="pal-label">{item.label}</span>
                 <span className="pal-cost">{item.cost === 0 ? 'free' : `${item.cost}`}</span>
               </span>
-              <span className="pal-note">{item.disabled && item.reason && item.reason !== 'only while building' ? item.reason : item.note}</span>
+              {item.disabled && item.reason && item.reason !== 'only while building' && <span className="pal-why">{item.reason}</span>}
+              <span className="pal-pro">+ {item.pro}</span>
+              <span className="pal-con">− {item.con}</span>
             </button>
           ))}
         </section>

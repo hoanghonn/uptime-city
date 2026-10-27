@@ -102,3 +102,6 @@ kbd { background: #1e293b; border: 1px solid #334155; border-bottom-width: 2px; 
 .card.guide { width: min(640px, 92vw); }
 .card.guide p { font-size: 15px; line-height: 1.6; }
 .learn-btn { margin-left: auto; background: #13254a; color: #bfdbfe; border: 1px solid #2c4a80; border-radius: 999px; width: 18px; height: 18px; font-size: 11px; line-height: 1; padding: 0; }
+.pal-pro { color: #86efac; font-size: 11px; line-height: 1.3; }
+.pal-con { color: #fca5a5; font-size: 11px; line-height: 1.3; }
+.pal-why { color: #fde68a; font-size: 11px; }

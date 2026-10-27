@@ -19,7 +19,7 @@ describe('paletteItems', () => {
     expect(names).toEqual(['Load balancer', 'API server', 'SQL database', 'NoSQL database', 'Cache (free wildcard)'])
     const api = groups.find((g) => g.title === 'API server')!
     expect(api.items.map((i) => [i.label, i.cost])).toEqual([['Small', 10], ['Large', 25]])
-    expect(api.items[1].note).toMatch(/900 requests a second/)
+    expect(api.items[1].pro).toMatch(/900 requests a second/)
     expect(api.items[1].action).toEqual({ kind: 'place', type: 'api', option: 'large' })
   })
 
@@ -59,5 +59,19 @@ describe('paletteItems', () => {
   it('outside the build and firefight phases everything is disabled', () => {
     const groups = paletteItems('shorty', newCity(STAGES.shorty, 'generalist'), 'generalist', 'test')
     expect(groups.flatMap((g) => g.items).every((i) => i.disabled)).toBe(true)
+  })
+})
+
+describe('trade-offs', () => {
+  it('every option in every stage shows one plus and one minus', async () => {
+    const { STAGE_ORDER } = await import('@uptime/core')
+    for (const id of STAGE_ORDER) {
+      for (const g of paletteItems(id, newCity(STAGES[id], 'generalist'), 'generalist', 'build')) {
+        for (const i of g.items) {
+          expect(i.pro, `${id} ${g.title} ${i.label}`).toMatch(/\w/)
+          expect(i.con, `${id} ${g.title} ${i.label}`).toMatch(/\w/)
+        }
+      }
+    }
   })
 })
