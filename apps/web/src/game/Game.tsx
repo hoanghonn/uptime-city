@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { applyAction, autoWire, CATALOG, CLASSES, STAGES, STAGE_ORDER, type City, type HeroClass } from '@uptime/core'
 import { City3D } from '../city/City3D'
+import { HeroMaker } from '../hero/HeroMaker'
+import { clearHero, loadHero, saveHero, type SavedHero } from '../hero/heroStore'
 import { browserPlayer } from '../voice/player'
 import { PushToTalk, type PttState } from '../voice/pushToTalk'
 import { BusyError, getStatus, LowPowerError, newRun, postCommand, postRival } from './api'
@@ -12,7 +14,6 @@ import {
 import './game.css'
 
 const TICK_MS = 100
-const HERO_NAME = 'Nova'
 
 function cityAt(g: G): City {
   if (g.firefightAction && g.nova && g.t >= (STAGES[g.stageId].chaos[0]?.at ?? 99)) {
@@ -31,7 +32,11 @@ export default function Game() {
   const [typed, setTyped] = useState('')
   const holdingRef = useRef(false)
   holdingRef.current = ptt === 'listening' || typed.trim() !== ''
-  const [heroClass, setHeroClass] = useState<HeroClass>('generalist')
+  const [hero, setHero] = useState<SavedHero | null>(loadHero)
+  const [stockClass, setHeroClass] = useState<HeroClass>('generalist')
+  const heroClass: HeroClass = hero?.heroClass ?? stockClass
+  const HERO_NAME = hero?.nickname ?? 'Nova'
+  const chooseHero = (h: SavedHero | null) => { setHero(h); if (h) saveHero(h); else clearHero() }
   const [lowPower, setLowPower] = useState(false)
   const lowPowerRef = useRef(false)
   lowPowerRef.current = lowPower
@@ -120,7 +125,7 @@ export default function Game() {
   }
   const build = async () => {
     setG((x) => beginBuild(x))
-    void browserPlayer.say({ line: 'hero.ready', voice: 'hero' })
+    void browserPlayer.say(hero ? { text: hero.catchphrase, voice: 'hero' } : { line: 'hero.ready', voice: 'hero' })
     try {
       const rival = await postRival(gRef.current.stageId)
       setG((x) => setRival(x, rival))
@@ -143,10 +148,12 @@ export default function Game() {
       <div className="screen map">
         <h1>Uptime City</h1>
         <p className="sub">Talk to your hero to build a backend as a city. Then survive the traffic.</p>
-        <h3 className="section">Pick {HERO_NAME}'s class. Every class has the same total power.</h3>
+        <h3 className="section">Your hero</h3>
+        <HeroMaker hero={hero} onHero={chooseHero} />
+        <h3 className="section">{hero ? `${HERO_NAME}'s class comes from the CV. Every class has the same total power.` : "Pick Nova's class. Every class has the same total power."}</h3>
         <div className="classes">
           {(Object.keys(CLASSES) as HeroClass[]).map((c) => (
-            <button key={c} className={c === heroClass ? 'class on' : 'class'} onClick={() => setHeroClass(c)}>
+            <button key={c} className={c === heroClass ? 'class on' : 'class'} disabled={!!hero && c !== heroClass} onClick={() => setHeroClass(c)}>
               <b>{CLASSES[c].name}</b>
               <span>{CLASSES[c].perk}</span>
               <span className="weak">{CLASSES[c].weakness}</span>

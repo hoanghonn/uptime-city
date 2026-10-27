@@ -1,8 +1,9 @@
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify'
 import websocket from '@fastify/websocket'
-import { STAGES } from '@uptime/core'
+import { CLASSES, STAGES } from '@uptime/core'
 import type { Kind, RunLimits } from './caps'
 import { runCommand, type ChatClient, type CommandInput } from './command'
+import { HeroLimits, makeHero, makePortrait, MAX_CV_TEXT, MAX_PDF_BASE64, type HeroCard, type ImageClient } from './hero'
 import { buildRival, scriptedRival } from './rival'
 import { bridgeStt, type SocketLike } from './stt'
 import { MAX_TTS_CHARS, synthesize, type TtsDeps } from './tts'
@@ -18,6 +19,8 @@ export type Deps = {
   /** public-demo caps; omitted in tests and local play */
   limits?: RunLimits
   budget?: Budget
+  images?: ImageClient
+  heroLimits?: HeroLimits
 }
 
 export function buildApp(deps: Deps) {
@@ -81,6 +84,29 @@ export function buildApp(deps: Deps) {
       })
       bridgeStt(socket as unknown as SocketLike, deps.stt.connect, deps.stt.apiKey)
     })
+  })
+
+  app.post<{ Body: { text?: string; pdfBase64?: string } }>('/api/hero', { bodyLimit: 6 * 1024 * 1024 }, async (req, reply) => {
+    const { text, pdfBase64 } = req.body ?? {}
+    const hasText = typeof text === 'string' && text.trim().length > 0 && text.length <= MAX_CV_TEXT
+    const hasPdf = typeof pdfBase64 === 'string' && pdfBase64.length > 0 && pdfBase64.length <= MAX_PDF_BASE64
+    if (!hasText && !hasPdf) return reply.code(400).send({ error: 'bad request' })
+    if (lowPower()) return reply.code(503).send({ error: 'low_power' })
+    const player = String(req.headers['x-player-id'] ?? req.ip).slice(0, 64)
+    if (deps.heroLimits && !deps.heroLimits.take(player)) {
+      return reply.code(429).send({ error: 'hero_limit', message: 'That is five heroes today. Come back tomorrow for more.' })
+    }
+    return makeHero(deps.meta, hasPdf ? { pdfBase64 } : { text })
+  })
+
+  app.post<{ Body: Pick<HeroCard, 'heroClass' | 'quirk'> }>('/api/portrait', async (req, reply) => {
+    const { heroClass, quirk } = req.body ?? ({} as any)
+    if (typeof quirk !== 'string' || quirk.length > 120 || !(heroClass in CLASSES)) return reply.code(400).send({ error: 'bad request' })
+    if (!deps.images || lowPower()) return reply.code(503).send({ error: 'unavailable' })
+    const url = await makePortrait(deps.images, { heroClass: heroClass as HeroCard['heroClass'], quirk })
+    if (!url) return reply.code(503).send({ error: 'unavailable' })
+    deps.budget?.add(0.01)
+    return { url }
   })
 
   app.get('/api/health', async () => ({ ok: true }))

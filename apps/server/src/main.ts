@@ -4,6 +4,7 @@ import fastifyStatic from '@fastify/static'
 import OpenAI from 'openai'
 import { buildApp } from './app'
 import { RunLimits } from './caps'
+import { HeroLimits } from './hero'
 import { openUpstream } from './stt'
 import { Budget, metered, PRICES } from './usage'
 
@@ -15,7 +16,7 @@ const bot = new OpenAI({
 })
 
 const budget = new Budget({ dailyUsd: Number(process.env.DAILY_BUDGET_USD ?? 6) })
-const app = buildApp({ meta: metered(meta, budget, PRICES.museSpark), bot: metered(bot, budget, PRICES.museSpark), budget, limits: new RunLimits({}), botModel: process.env.BOT_MODEL, tts: { apiKey: process.env.ELEVENLABS_API_KEY ?? '' }, stt: { connect: openUpstream, apiKey: process.env.META_API_KEY ?? '' } })
+const app = buildApp({ meta: metered(meta, budget, PRICES.museSpark), bot: metered(bot, budget, PRICES.museSpark), budget, limits: new RunLimits({}), images: meta.images, heroLimits: new HeroLimits({ perDay: 5 }), botModel: process.env.BOT_MODEL, tts: { apiKey: process.env.ELEVENLABS_API_KEY ?? '' }, stt: { connect: openUpstream, apiKey: process.env.META_API_KEY ?? '' } })
 // In production the same server hands out the built web app.
 const web = fileURLToPath(new URL('../../web/dist/', import.meta.url))
 if (existsSync(web)) {

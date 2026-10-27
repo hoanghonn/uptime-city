@@ -68,3 +68,17 @@ kbd { background: #1e293b; border: 1px solid #334155; border-bottom-width: 2px; 
 .talk input { width: 100%; background: #0b1630; border: 1px solid #1e3358; border-radius: 10px; padding: 10px 12px; color: #e2e8f0; }
 .section { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; margin: 0 0 10px; font-weight: 600; }
 .lowpower { background: #3b2a05; color: #fde68a; border: 1px solid #a16207; border-radius: 6px; padding: 2px 10px; font-size: 12px; }
+.hero-maker { display: grid; grid-template-columns: 420px 1fr; gap: 16px; margin-bottom: 26px; }
+.hero-card { display: flex; gap: 14px; background: #0b1630; border: 1px solid #1e3358; border-radius: 14px; padding: 14px; }
+.portrait { width: 132px; height: 132px; border-radius: 12px; object-fit: cover; flex: none; }
+.portrait.placeholder { display: grid; place-items: center; background: linear-gradient(135deg, #0f766e, #4c1d95); color: #e2e8f0; font-weight: 700; text-align: center; padding: 8px; font-size: 13px; }
+.hero-info h3 { margin: 2px 0 4px; font-size: 20px; }
+.hero-info p { margin: 2px 0; font-size: 13px; color: #cbd5e1; }
+.hero-info .catch { color: #5eead4; font-style: italic; }
+.hero-info .weak, .class .weak { color: #fca5a5; font-size: 12px; }
+.maker { background: #0b1630; border: 1px dashed #2c4a80; border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.maker .hint { color: #94a3b8; font-size: 12px; margin: 0; }
+.maker .row { display: flex; gap: 8px; flex-wrap: wrap; margin: 0; }
+.maker input { flex: 1; min-width: 200px; background: #050b1a; border: 1px solid #1e3358; border-radius: 8px; padding: 8px 10px; color: #e2e8f0; }
+.file { display: inline-flex; align-items: center; cursor: pointer; }
+.class:disabled { opacity: 0.4; cursor: default; }
