@@ -78,6 +78,24 @@ describe('buildRival', () => {
     expect(r.city.buildings.map((b) => b.id)).toEqual(['lb1', 'api1', 'nosql1'])
   })
 
+  it('API servers left unconnected are linked to the first database', async () => {
+    const { client } = scripted([
+      { name: 'place', args: { type: 'lb', option: 'round_robin' } },
+      { name: 'place', args: { type: 'api', option: 'small' } },
+      { name: 'place', args: { type: 'sql', option: 'standard' } },
+      { name: 'place', args: { type: 'nosql', option: 'standard' } },
+    ])
+    const r = await buildRival(client, stage, { model: 'm' })
+    expect(r.source).toBe('live')
+    expect(r.city.links).toContainEqual({ from: 'api1', to: 'sql1' })
+  })
+
+  it('a rival city that serves almost nothing falls back to the scripted build', async () => {
+    const { client } = scripted([{ name: 'place', args: { type: 'api', option: 'small' } }])
+    const r = await buildRival(client, stage, { model: 'm' })
+    expect(r.source).toBe('scripted')
+  })
+
   it('asks the given model, in character, with the stage blind spot', async () => {
     const { client, requests } = scripted(weak)
     await buildRival(client, stage, { model: 'meta-models/muse-spark-open' })

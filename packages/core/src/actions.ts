@@ -49,12 +49,18 @@ export function applyAction(city: City, action: Action, ctx: ActionContext): Act
   const { heroClass } = ctx
   switch (action.kind) {
     case 'place': {
-      const problem = checkNew(action.type, action.option, ctx, false)
+      const wildcard = action.wildcard === true
+      if (wildcard && city.wildcardUsed) return fail('wildcard already used')
+      if (wildcard && ctx.stage.wildcard !== action.type) return fail(`the wildcard is not a ${CATALOG[action.type].name}`)
+      const problem = checkNew(action.type, action.option, ctx, wildcard)
       if (problem) return fail(problem)
-      const cost = buildingCost(action.type, action.option, heroClass)
+      const cost = wildcard ? 0 : buildingCost(action.type, action.option, heroClass)
       if (cost > city.coins) return fail('not enough coins')
       const b: Building = { id: nextId(city, action.type), type: action.type, option: action.option, addons: [] }
-      return { ok: true, city: { ...city, buildings: [...city.buildings, b], coins: city.coins - cost } }
+      return {
+        ok: true,
+        city: { ...city, buildings: [...city.buildings, b], coins: city.coins - cost, wildcardUsed: city.wildcardUsed || wildcard },
+      }
     }
     case 'insert': {
       const wildcard = action.wildcard === true

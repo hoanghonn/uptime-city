@@ -90,6 +90,12 @@ describe('applyAction', () => {
     expect(again).toEqual({ ok: false, reason: 'wildcard already used' })
   })
 
+  it('the wildcard can also be placed on its own, for free', () => {
+    const city = run([...funTestBuild, { kind: 'place', type: 'cache', option: 'standard', wildcard: true }])
+    expect(city.coins).toBe(0)
+    expect(city.buildings.at(-1)?.id).toBe('cache1')
+  })
+
   it('data keeper first replica is free, second is not', () => {
     const city = run(
       [

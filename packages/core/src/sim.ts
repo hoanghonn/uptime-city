@@ -163,8 +163,8 @@ function step(city: City, heroClass: HeroClass, offered: Flow, t: number, builtA
 }
 
 const LESSONS: Partial<Record<BuildingType, string>> = {
-  api: 'The bottleneck was the API servers, not the database. A cache in front of them, or more servers, would have kept traffic flowing.',
-  sql: 'The database was the bottleneck. Read replicas, an index, or a cache in front of it would have taken the pressure off.',
+  api: 'The bottleneck was the API servers, not the database. A cache in front of them, or more servers, keeps the traffic flowing.',
+  sql: 'The database was the bottleneck. Read replicas, an index, or a cache in front of it take the pressure off.',
   nosql: 'The database was the bottleneck. With one very popular key, extra nodes do not help; a cache in front does.',
   lb: 'Even the load balancer gave up. That much traffic needs to be stopped earlier.',
   cache: 'The cache itself was overwhelmed.',

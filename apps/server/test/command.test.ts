@@ -167,6 +167,32 @@ function seqClient(rounds: { content: string; calls: ToolCall[] }[]) {
   return { client, requests }
 }
 
+describe('runCommand - wildcard and refusals', () => {
+  const full = cityWith([
+    { kind: 'place', type: 'lb', option: 'round_robin' },
+    { kind: 'place', type: 'api', option: 'large' },
+    { kind: 'place', type: 'api', option: 'large' },
+    { kind: 'place', type: 'sql', option: 'standard' },
+    { kind: 'addon', building: 'sql1', addon: 'index' },
+    { kind: 'addon', building: 'sql1', addon: 'read_replica' },
+  ])
+
+  it('an order for the wildcard building uses the free wildcard even if the model forgets the flag', async () => {
+    expect(full.coins).toBe(0)
+    const { client } = seqClient([{ content: 'Cache in!', calls: [{ name: 'insert', args: { type: 'cache', option: 'standard', after: 'lb1' } }] }, { content: '', calls: [] }])
+    const r = await runCommand(client, input(full, 'cache in front', 'firefight'))
+    expect(r.rejected).toEqual([])
+    expect(r.actions).toEqual([{ kind: 'insert', type: 'cache', option: 'standard', after: 'lb1', wildcard: true }])
+    expect(r.city.wildcardUsed).toBe(true)
+  })
+
+  it('when every order is refused, the hero says why instead of claiming success', async () => {
+    const { client } = seqClient([{ content: 'Done, boss!', calls: [{ name: 'place', args: { type: 'api', option: 'large' } }] }, { content: '', calls: [] }])
+    const r = await runCommand(client, input(full, 'one more server'))
+    expect(r.heroLine).toBe("I can't do that: not enough coins.")
+  })
+})
+
 describe('runCommand - rounds and wiring', () => {
   it('a second round adds add-ons once the first round has built the database', async () => {
     const { client, requests } = seqClient([
@@ -183,10 +209,16 @@ describe('runCommand - rounds and wiring', () => {
     expect(r.usage).toEqual({ prompt: 30, completion: 15 })
   })
 
-  it('stops after 3 rounds even if the model keeps calling tools', async () => {
+  it('stops after 6 rounds even if the model keeps calling tools', async () => {
     const { client, requests } = seqClient([{ content: 'more', calls: [{ name: 'place', args: { type: 'api', option: 'small' } }] }])
     await runCommand(client, input(newCity(stage, 'generalist'), 'servers forever'))
-    expect(requests).toHaveLength(3)
+    expect(requests).toHaveLength(6)
+  })
+
+  it('tells the model to make every call for the order in one reply', async () => {
+    const { client, requests } = seqClient([{ content: '', calls: [] }])
+    await runCommand(client, input(newCity(stage, 'generalist'), 'x'))
+    expect(requests[0].messages[0].content).toContain('in a single reply')
   })
 
   it('the build phase auto-wires the obvious connections', async () => {

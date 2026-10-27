@@ -62,14 +62,29 @@ async function livePlan(client: ChatClient, stage: Stage, model: string): Promis
     if (r.ok) { city = r.city; kept.push(action) }
   }
   if (city.buildings.length === 0) return null
-  return { actions: kept, city: autoWire(city), lines: [plan.taunt?.trim() || stage.rivalTaunt], source: 'live' }
+  return { actions: kept, city: connectServers(autoWire(city)), lines: [plan.taunt?.trim() || stage.rivalTaunt], source: 'live' }
 }
+
+/** The rival often forgets to wire its API servers when it builds two databases; give them the first one. */
+function connectServers(city: City): City {
+  const db = city.buildings.find((b) => b.type === 'sql' || b.type === 'nosql')
+  if (!db) return city
+  const links = [...city.links]
+  for (const api of city.buildings.filter((b) => b.type === 'api')) {
+    if (!links.some((l) => l.from === api.id)) links.push({ from: api.id, to: db.id })
+  }
+  return { ...city, links }
+}
+
+/** Below this the rival would be a free win, so it falls back to the scripted build. */
+const MIN_SERVED = 0.1
 
 /** The rival builds live on Muse Spark Open; anything slow, empty or too strong falls back to the scripted build. */
 export async function buildRival(client: ChatClient, stage: Stage, opts: RivalOptions): Promise<RivalResult> {
   const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), opts.timeoutMs ?? 8000))
   const res = await Promise.race([livePlan(client, stage, opts.model).catch(() => null), timeout])
   if (!res) return scriptedRival(stage)
-  if (simulate(res.city, stage, stage.rivalClass).servedPct > stage.rivalMaxServed) return scriptedRival(stage)
+  const served = simulate(res.city, stage, stage.rivalClass).servedPct
+  if (served > stage.rivalMaxServed || served < MIN_SERVED) return scriptedRival(stage)
   return res
 }

@@ -13,7 +13,7 @@ export type City = {
 }
 
 export type Action =
-  | { kind: 'place'; type: BuildingType; option: string }
+  | { kind: 'place'; type: BuildingType; option: string; wildcard?: boolean }
   | { kind: 'insert'; type: BuildingType; option: string; after: string; wildcard?: boolean }
   | { kind: 'addon'; building: string; addon: string }
   | { kind: 'link'; from: string; to: string }

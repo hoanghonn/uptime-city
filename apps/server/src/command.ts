@@ -17,7 +17,7 @@ export type CommandResult = {
 
 export const COMMAND_MODEL = 'muse-spark-1.3'
 const COMMS_DOWN = 'Comms are down, type your orders.'
-const MAX_ROUNDS = 3
+const MAX_ROUNDS = 6
 const FIREFIGHT_TOOLS = new Set(['place', 'insert', 'addon', 'remove', 'ask_back'])
 
 const str = (description: string, values?: string[]) => ({ type: 'string', description, ...(values ? { enum: values } : {}) })
@@ -83,6 +83,7 @@ ${describeCity(city)}
 
 Rules:
 - Turn the player's spoken order into tool calls, in order. One sentence can need several calls: build, then add-ons, then connect.
+- Make every tool call for the whole order in a single reply. New ids are predictable: the first api is api1, the second api2, the first sql is sql1.
 - Traffic starts at "users", which must connect to a load balancer first. API servers must connect to a database or nothing gets served.
 - Connect new buildings sensibly unless told otherwise: users -> load balancer -> API servers -> database.
 - If the order is ambiguous in a way that matters (where a cache goes, which of two buildings), call ask_back and nothing else. Never guess.
@@ -92,7 +93,7 @@ ${phase === 'firefight' ? '- The stress test is running. Only quick fixes: build
 
 function toAction(name: string, args: any): Action | null {
   switch (name) {
-    case 'place': return { kind: 'place', type: args.type, option: args.option }
+    case 'place': return { kind: 'place', type: args.type, option: args.option, ...(args.wildcard ? { wildcard: true } : {}) }
     case 'insert': return { kind: 'insert', type: args.type, option: args.option, after: args.after, ...(args.wildcard ? { wildcard: true } : {}) }
     case 'addon': return { kind: 'addon', building: args.building, addon: args.addon }
     case 'link': return { kind: 'link', from: args.from, to: args.to }
@@ -142,6 +143,9 @@ export async function runCommand(client: ChatClient, input: CommandInput, opts: 
   }
 
   if (input.phase === 'build' && result.actions.length > 0) result.city = autoWire(result.city)
+  if (result.actions.length === 0 && result.rejected.length > 0 && !result.askBack) {
+    result.heroLine = `I can't do that: ${result.rejected[0].reason}.`
+  }
   if (!result.heroLine) result.heroLine = 'On it.'
   return result
 }
@@ -170,7 +174,11 @@ function handleCall(call: any, input: CommandInput, stage: Stage, ctx: { stage: 
     if (input.phase === 'build') result.submit = true
     return 'stress test starting'
   }
-  const action = toAction(name, args)
+  let action = toAction(name, args)
+  // The wildcard is free and used first: models often forget the flag.
+  if (action && (action.kind === 'place' || action.kind === 'insert') && action.type === stage.wildcard && !result.city.wildcardUsed) {
+    action = { ...action, wildcard: true }
+  }
   if (!action) {
     result.rejected.push({ action: { kind: name }, reason: 'I could not make sense of that order' })
     return 'rejected: I could not make sense of that order'
