@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { applyAction, autoWire, newCity, STAGES, type Action, type City } from '@uptime/core'
 import {
-  ASK_BACK_MS, FIREFIGHT_MS, advance, replayWindow, startReplay, applyCommand, applyFirefight, beginBuild, initialGame, retry, setRival, setThinking,
+  ASK_BACK_MS, FIREFIGHT_MS, advance, clickBuild, replayWindow, startReplay, applyCommand, applyFirefight, beginBuild, initialGame, retry, setRival, setThinking,
   startStage, startTest, tickClock, type Game,
 } from './flow'
 
@@ -141,5 +141,31 @@ describe('replay of the worst moment', () => {
     r = advance(r, 3.1)
     expect(r.phase).toBe('result')
     expect(r.outcome).toBe(g.outcome)
+  })
+})
+
+describe('click to build', () => {
+  it('in the build phase it applies the action and wires the city', () => {
+    let g = beginBuild(startStage(initialGame(), 'shorty', 'generalist'))
+    g = clickBuild(g, { kind: 'place', type: 'lb', option: 'round_robin' })
+    g = clickBuild(g, { kind: 'place', type: 'api', option: 'large' })
+    expect(g.city.links).toEqual([{ from: 'users', to: 'lb1' }, { from: 'lb1', to: 'api1' }])
+    expect(g.city.coins).toBe(65)
+    expect(g.log.at(-1)).toEqual({ who: 'you', text: 'Built: API server, large' })
+  })
+
+  it('a refused click explains why and changes nothing', () => {
+    const g = beginBuild(startStage(initialGame(), 'shorty', 'generalist'))
+    const after = clickBuild(g, { kind: 'addon', building: 'sql1', addon: 'index' })
+    expect(after.city).toEqual(g.city)
+    expect(after.log.at(-1)).toEqual({ who: 'system', text: "Couldn't do that: no building called sql1" })
+  })
+
+  it('during the firefight it is the one firefight command', () => {
+    let g = advance(startTest(building()), 16)
+    g = clickBuild(g, { kind: 'insert', type: 'cache', option: 'standard', after: 'lb1', wildcard: true })
+    expect(g.phase).toBe('test')
+    expect(g.firefightUsed).toBe(true)
+    expect(g.nova!.servedPct).toBeGreaterThan(0.85)
   })
 })

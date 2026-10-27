@@ -7,8 +7,9 @@ import { browserPlayer } from '../voice/player'
 import { PushToTalk, type PttState } from '../voice/pushToTalk'
 import { BusyError, getStatus, LowPowerError, newRun, postCommand, postRival } from './api'
 import { localCommand } from './localParser'
+import { Palette } from './Palette'
 import {
-  ASK_BACK_MS, FIREFIGHT_MS, advance, startReplay, answerText, applyCommand, applyFirefight, beginBuild, initialGame, say, setRival, setThinking, startStage,
+  ASK_BACK_MS, FIREFIGHT_MS, advance, clickBuild, startReplay, answerText, applyCommand, applyFirefight, beginBuild, initialGame, say, setRival, setThinking, startStage,
   startTest, tickClock, toMap, type Game as G,
 } from './flow'
 import './game.css'
@@ -200,6 +201,8 @@ export default function Game() {
         ) : (
           <div className="waiting">{g.phase === 'briefing' ? '' : `${rivalName} is building...`}</div>
         )}
+
+        <Palette stageId={g.stageId} city={shownCity} heroClass={g.heroClass} phase={g.phase} onBuild={(a) => setG((x) => (x.thinking ? x : clickBuild(x, a)))} />
 
         {g.phase === 'briefing' && (
           <div className="overlay">

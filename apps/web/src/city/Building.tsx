@@ -1,8 +1,9 @@
 import { Html } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import * as THREE from 'three'
 import type { Building as B } from '@uptime/core'
+import { BUILD_SECONDS, type Crew } from './builder'
 
 export const TYPE_COLOR: Record<string, string> = {
   users: '#7dd3fc', lb: '#a78bfa', api: '#34d399', cache: '#facc15', sql: '#60a5fa', nosql: '#2dd4bf',
@@ -46,30 +47,39 @@ function Users() {
   )
 }
 
-type Props = { id: string; building?: B; position: [number, number]; load: number }
+type Props = { id: string; building?: B; position: [number, number]; load: number; crew?: Crew }
 
 /** One building: drops in when placed, glows, turns orange near capacity, red and shaking above it. */
-export function Building({ id, building, position, load }: Props) {
+export function Building({ id, building, position, load, crew }: Props) {
   const group = useRef<THREE.Group>(null)
   const mat = useRef<THREE.MeshStandardMaterial>(null)
-  const born = useRef<number | null>(null)
+  // Hidden until the builder reaches the site, then it rises from the ground.
+  const [shown, setShown] = useState(!crew || crew.started.has(id))
   const type = building?.type ?? 'users'
   const base = new THREE.Color(TYPE_COLOR[type])
   const h = HEIGHT[type]
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime
-    if (born.current === null) born.current = t
-    const age = Math.min(1, (t - born.current) / 0.45)
-    const drop = (1 - age) ** 3 * 5
+    const start = crew ? crew.started.get(id) : -Infinity
+    if (start === undefined) {
+      if (group.current) group.current.scale.setScalar(0.0001)
+      return
+    }
+    if (!shown) setShown(true)
+    const p = Math.min(1, Math.max(0, (t - start) / BUILD_SECONDS))
+    const rise = p < 1 ? 0.05 + 0.95 * (1 - (1 - p) ** 3) : 1
     const hot = load > 1
     const shake = hot ? Math.sin(t * 45) * 0.06 : 0
-    if (group.current) group.current.position.set(position[0] + shake, drop, position[1])
+    if (group.current) {
+      group.current.position.set(position[0] + shake, 0, position[1])
+      group.current.scale.set(1, rise, 1)
+    }
     if (mat.current) {
       const c = hot ? HOT : load > 0.8 ? WARM : base
       mat.current.color.copy(c)
       mat.current.emissive.copy(c)
-      mat.current.emissiveIntensity = hot ? 1.4 + Math.sin(t * 12) * 0.6 : 0.45
+      mat.current.emissiveIntensity = hot ? 1.4 + Math.sin(t * 12) * 0.6 : p < 1 ? 1.6 - p : 0.45
     }
   })
 
@@ -98,7 +108,7 @@ export function Building({ id, building, position, load }: Props) {
           <meshStandardMaterial color={TYPE_COLOR.nosql} emissive={TYPE_COLOR.nosql} emissiveIntensity={0.3} />
         </mesh>
       ))}
-      <Html position={[0, h + 0.55, 0]} center zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
+      {shown && <Html position={[0, h + 0.55, 0]} center zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
         <div className="label">
           <div className="label-row">
             <span className="label-name">{shortName(id, type)}</span>
@@ -112,7 +122,7 @@ export function Building({ id, building, position, load }: Props) {
             </div>
           )}
         </div>
-      </Html>
+      </Html>}
     </group>
   )
 }

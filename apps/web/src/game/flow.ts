@@ -1,4 +1,4 @@
-import { compare, newCity, simulate, STAGES, TEST_SECONDS, type Action, type City, type HeroClass, type SimResult } from '@uptime/core'
+import { applyAction, autoWire, CATALOG, compare, newCity, simulate, STAGES, TEST_SECONDS, type Action, type City, type HeroClass, type SimResult } from '@uptime/core'
 
 export const ASK_BACK_MS = 3000
 export const FIREFIGHT_MS = 8000
@@ -152,3 +152,21 @@ export function tickClock(g: Game, ms: number, opts: { holding?: boolean } = {})
 
 export const retry = (g: Game): Game => startStage(g, g.stageId, g.heroClass)
 export const toMap = (g: Game): Game => ({ ...initialGame(), cleared: g.cleared })
+
+function describeAction(g: Game, a: Action): string {
+  if (a.kind === 'place' || a.kind === 'insert') return `${CATALOG[a.type].name}, ${CATALOG[a.type].options[a.option]?.label.toLowerCase() ?? a.option}`
+  if (a.kind === 'addon') {
+    const b = g.city.buildings.find((x) => x.id === a.building)
+    return b ? `${CATALOG[b.type].addons[a.addon]?.label.toLowerCase() ?? a.addon} on ${a.building}` : a.addon
+  }
+  return a.kind
+}
+
+/** A building picked from the list: built straight away, no AI involved; during the firefight it is the one command. */
+export function clickBuild(g: Game, action: Action): Game {
+  if (g.phase === 'firefight') return say(applyFirefight(g, action), { who: 'you', text: `Built: ${describeAction(g, action)}` })
+  if (g.phase !== 'build') return g
+  const r = applyAction(g.city, action, { stage: STAGES[g.stageId], heroClass: g.heroClass })
+  if (!r.ok) return say(g, { who: 'system', text: `Couldn't do that: ${r.reason}` })
+  return say({ ...g, city: autoWire(r.city) }, { who: 'you', text: `Built: ${describeAction(g, action)}` })
+}

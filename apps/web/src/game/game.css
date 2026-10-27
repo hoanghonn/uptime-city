@@ -82,3 +82,15 @@ kbd { background: #1e293b; border: 1px solid #334155; border-bottom-width: 2px; 
 .maker input { flex: 1; min-width: 200px; background: #050b1a; border: 1px solid #1e3358; border-radius: 8px; padding: 8px 10px; color: #e2e8f0; }
 .file { display: inline-flex; align-items: center; cursor: pointer; }
 .class:disabled { opacity: 0.4; cursor: default; }
+.arena { grid-template-columns: 1fr 1fr 290px; }
+.palette { background: #071026; border-left: 1px solid #13254a; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.palette-head { display: flex; justify-content: space-between; align-items: center; }
+.palette .hint { margin: -4px 0 0; color: #94a3b8; font-size: 12px; }
+.pal-group h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: #cbd5e1; display: flex; align-items: center; gap: 6px; }
+.dot { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+.pal-item { width: 100%; text-align: left; background: #0b1630; border: 1px solid #1e3358; border-radius: 8px; padding: 7px 9px; color: #e2e8f0; margin-bottom: 5px; display: flex; flex-direction: column; gap: 2px; }
+.pal-item:hover:not(:disabled) { border-color: #5eead4; background: #0f2147; }
+.pal-item:disabled { opacity: 0.45; cursor: default; }
+.pal-row { display: flex; justify-content: space-between; font-weight: 600; font-size: 13px; }
+.pal-cost { color: #fcd34d; font-variant-numeric: tabular-nums; }
+.pal-note { color: #94a3b8; font-size: 11px; line-height: 1.3; }
