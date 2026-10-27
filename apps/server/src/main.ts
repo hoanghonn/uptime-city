@@ -9,6 +9,6 @@ const bot = new OpenAI({
   defaultHeaders: { Authorization: `Api-Key ${process.env.BASETEN_API_KEY}` },
 })
 
-const app = buildApp({ meta, bot, botModel: process.env.BOT_MODEL, stt: { connect: openUpstream, apiKey: process.env.META_API_KEY ?? '' } })
+const app = buildApp({ meta, bot, botModel: process.env.BOT_MODEL, tts: { apiKey: process.env.ELEVENLABS_API_KEY ?? '' }, stt: { connect: openUpstream, apiKey: process.env.META_API_KEY ?? '' } })
 const port = Number(process.env.PORT ?? 8787)
 app.listen({ port, host: '0.0.0.0' }).then(() => console.log(`Uptime City server on :${port}`))
