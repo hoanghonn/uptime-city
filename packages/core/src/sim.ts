@@ -214,7 +214,11 @@ export function simulate(start: City, stage: Stage, heroClass: HeroClass, opts: 
     p95Ms: percentile(samples, 0.95),
     coinsLeft: city.coins,
     worstMoment: { second: worst.dropped > 0 ? worst.t : 0, building: worstBuilding },
-    lesson: worstType ? LESSONS[worstType] ?? 'Something gave way under pressure.' : 'Your city held everything. Nicely done.',
+    lesson: worstType
+      ? LESSONS[worstType] ?? 'Something gave way under pressure.'
+      : worst.dropped > 0
+        ? 'Traffic never reached your city. Connect the users to a load balancer, and the API servers to a database.'
+        : 'Your city held everything. Nicely done.',
   }
 }
 
