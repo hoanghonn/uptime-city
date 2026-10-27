@@ -11,6 +11,8 @@ export type OptionStats = {
   /** nosql: nodes and per-node read capacity */
   nodes?: number
   nodeReads?: number
+  /** queue: messages it can hold */
+  capacity?: number
 }
 
 export type AddonStats = { cost: number; label: string; on: BuildingType[] }
@@ -61,8 +63,16 @@ export const CATALOG: Record<BuildingType, CatalogEntry> = {
       index: { cost: 5, label: 'Index', on: ['sql', 'nosql'] },
     },
   },
-  queue: { name: 'Queue', options: {}, addons: {} },
-  worker: { name: 'Worker', options: {}, addons: {} },
+  queue: {
+    name: 'Queue',
+    options: { standard: { cost: 15, label: 'Queue', capacity: 20000 } },
+    addons: {},
+  },
+  worker: {
+    name: 'Worker',
+    options: { standard: { cost: 10, label: 'Worker', rps: 400 } },
+    addons: {},
+  },
   cdn: { name: 'CDN', options: {}, addons: {} },
   storage: { name: 'Object storage', options: {}, addons: {} },
 }

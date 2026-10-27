@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { applyAction, CATALOG, CLASSES, STAGES, STAGE_ORDER, type City, type HeroClass } from '@uptime/core'
+import { applyAction, autoWire, CATALOG, CLASSES, STAGES, STAGE_ORDER, type City, type HeroClass } from '@uptime/core'
 import { City3D } from '../city/City3D'
 import { browserPlayer } from '../voice/player'
 import { PushToTalk, type PttState } from '../voice/pushToTalk'
@@ -16,7 +16,7 @@ const HERO_NAME = 'Nova'
 function cityAt(g: G): City {
   if (g.firefightAction && g.nova && g.t >= (STAGES[g.stageId].chaos[0]?.at ?? 99)) {
     const r = applyAction(g.city, g.firefightAction, { stage: STAGES[g.stageId], heroClass: g.heroClass })
-    if (r.ok) return r.city
+    if (r.ok) return autoWire(r.city)
   }
   return g.city
 }

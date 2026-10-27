@@ -31,9 +31,22 @@ export function autoWire(city: City): City {
     if (front && !links.some((l) => l.to === api.id)) add(front, api.id)
   }
 
+  // A queue nobody feeds takes the writes from every API server; workers drain it.
+  const typeOf = (id: string) => city.buildings.find((b) => b.id === id)?.type
+  const queues = of(['queue'])
+  if (queues.length === 1) {
+    const q = queues[0].id
+    if (!links.some((l) => l.to === q)) for (const api of of(['api'])) add(api.id, q)
+    for (const w of of(['worker'])) if (!links.some((l) => l.to === w.id)) add(q, w.id)
+  }
+
+  // API servers with nowhere to send reads (nothing, or only a queue), and workers, get the only database.
   const dbs = of(DATA)
   if (dbs.length === 1) {
-    for (const api of of(['api'])) if (!links.some((l) => l.from === api.id)) add(api.id, dbs[0].id)
+    for (const w of of(['worker'])) if (!links.some((l) => l.from === w.id)) add(w.id, dbs[0].id)
+    for (const api of of(['api'])) {
+      if (!links.some((l) => l.from === api.id && typeOf(l.to) !== 'queue')) add(api.id, dbs[0].id)
+    }
   }
   return { ...city, links }
 }

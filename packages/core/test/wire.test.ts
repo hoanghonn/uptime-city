@@ -54,6 +54,47 @@ describe('autoWire', () => {
   })
 })
 
+describe('autoWire with a queue', () => {
+  it('an API server that only feeds a queue still gets the database for reads', () => {
+    const chatter = STAGES.chatter
+    let city = newCity(chatter, 'generalist')
+    for (const a of [
+      { kind: 'place', type: 'api', option: 'large' },
+      { kind: 'place', type: 'sql', option: 'standard' },
+      { kind: 'place', type: 'queue', option: 'standard' },
+      { kind: 'link', from: 'api1', to: 'queue1' },
+    ] as Action[]) {
+      const r = applyAction(city, a, { stage: chatter, heroClass: 'generalist' })
+      if (!r.ok) throw new Error(r.reason)
+      city = r.city
+    }
+    expect(autoWire(city).links).toContainEqual({ from: 'api1', to: 'sql1' })
+  })
+
+  it('a new queue and workers are connected: API servers -> queue -> workers -> the only database', () => {
+    const chatter = STAGES.chatter
+    let city = newCity(chatter, 'generalist')
+    for (const a of [
+      { kind: 'place', type: 'lb', option: 'round_robin' },
+      { kind: 'place', type: 'api', option: 'large' },
+      { kind: 'place', type: 'sql', option: 'standard' },
+      { kind: 'place', type: 'queue', option: 'standard' },
+      { kind: 'place', type: 'worker', option: 'standard' },
+      { kind: 'place', type: 'worker', option: 'standard' },
+    ] as Action[]) {
+      const r = applyAction(city, a, { stage: chatter, heroClass: 'generalist' })
+      if (!r.ok) throw new Error(r.reason)
+      city = r.city
+    }
+    const links = autoWire(city).links
+    expect(links).toEqual(expect.arrayContaining([
+      { from: 'api1', to: 'queue1' }, { from: 'api1', to: 'sql1' },
+      { from: 'queue1', to: 'worker1' }, { from: 'queue1', to: 'worker2' },
+      { from: 'worker1', to: 'sql1' }, { from: 'worker2', to: 'sql1' },
+    ]))
+  })
+})
+
 describe('lesson when nothing is connected', () => {
   it('says that traffic never reached the city', () => {
     const r = simulate(build(places), stage, 'generalist')

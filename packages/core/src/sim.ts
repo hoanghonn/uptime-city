@@ -1,4 +1,5 @@
 import { applyAction } from './actions'
+import { autoWire } from './wire'
 import { CACHE_HIT, CATALOG } from './catalog'
 import { CLASSES, capacityMultiplier } from './classes'
 import type { Action, Building, BuildingType, City, HeroClass, Stage } from './types'
@@ -66,7 +67,11 @@ function topoOrder(city: City): string[] {
 
 type TickState = { served: number; dropped: number; load: Record<string, number>; samples: [number, number][] }
 
-function step(city: City, heroClass: HeroClass, offered: Flow, t: number, builtAt: Map<string, number>, down: Set<string>): TickState {
+const DT = 1 / TICKS_PER_SECOND
+
+function step(
+  city: City, heroClass: HeroClass, offered: Flow, t: number, builtAt: Map<string, number>, down: Set<string>, backlog: Map<string, number>,
+): TickState {
   const byId = new Map(city.buildings.map((b) => [b.id, b]))
   const incoming = new Map<string, Flow>([['users', offered]])
   const st: TickState = { served: 0, dropped: 0, load: {}, samples: [] }
@@ -80,8 +85,8 @@ function step(city: City, heroClass: HeroClass, offered: Flow, t: number, builtA
     st.served += count
     st.samples.push([lat, count])
   }
-  const forward = (from: string, flow: Flow, weights?: (b: Building) => number) => {
-    const outs = city.links.filter((l) => l.from === from && byId.has(l.to))
+  const forward = (from: string, flow: Flow, weights?: (b: Building) => number, only?: (b: Building) => boolean) => {
+    const outs = city.links.filter((l) => l.from === from && byId.has(l.to) && (!only || only(byId.get(l.to)!)))
     if (outs.length === 0 || total(flow) <= 0) return drop(total(flow))
     const w = outs.map((l) => (weights ? weights(byId.get(l.to)!) : 1))
     const sum = w.reduce((a, b) => a + b, 0) || 1
@@ -108,8 +113,17 @@ function step(city: City, heroClass: HeroClass, offered: Flow, t: number, builtA
         const kept = Math.min(1, cap / t0)
         drop(t0 * (1 - kept))
         const out = { ...scale(flow, kept), lat: flow.lat + nodeLatency(b.type, load) }
+        // least connections health-checks its servers: dead ones get no traffic
         const leastConn = b.type === 'lb' && b.option === 'least_conn'
-        forward(id, out, leastConn ? (x) => (CATALOG[x.type].options[x.option].rps ?? 1) * capacityMultiplier(heroClass, x.type) : undefined)
+        const weight = leastConn ? (x: Building) => (down.has(x.id) ? 0 : (CATALOG[x.type].options[x.option].rps ?? 1) * capacityMultiplier(heroClass, x.type)) : undefined
+        const toQueue = city.links.some((l) => l.from === id && byId.get(l.to)?.type === 'queue')
+        if (b.type === 'api' && toQueue) {
+          // writes go to the queue, reads to everything else
+          forward(id, { n: 0, h: 0, w: out.w, lat: out.lat }, undefined, (x) => x.type === 'queue')
+          forward(id, { n: out.n, h: out.h, w: 0, lat: out.lat }, undefined, (x) => x.type !== 'queue')
+        } else {
+          forward(id, out, weight)
+        }
         break
       }
       case 'cache': {
@@ -153,8 +167,31 @@ function step(city: City, heroClass: HeroClass, offered: Flow, t: number, builtA
         drop(t0 - ok)
         break
       }
+      case 'queue': {
+        // Messages are accepted while there is room; workers drain them into the database in the background.
+        const cap = (opt.capacity ?? 0) * mult
+        let held = backlog.get(id) ?? 0
+        const space = Math.max(0, cap - held)
+        const accepted = Math.min(flow.w, space / DT)
+        serve(accepted, flow.lat + (BASE_MS.queue ?? 2))
+        drop(t0 - accepted)
+        held += accepted * DT
+        const workers = city.links
+          .filter((l) => l.from === id)
+          .map((l) => byId.get(l.to))
+          .filter((w): w is Building => !!w && w.type === 'worker' && !down.has(w.id) && city.links.some((x) => x.from === w.id && (byId.get(x.to)?.type === 'sql' || byId.get(x.to)?.type === 'nosql')))
+        const drainCap = workers.reduce((s, w) => s + (CATALOG.worker.options[w.option].rps ?? 0) * capacityMultiplier(heroClass, 'worker'), 0)
+        const drained = Math.min(held, drainCap * DT)
+        held -= drained
+        backlog.set(id, held)
+        st.load[id] = cap > 0 ? held / cap : 1
+        for (const w of workers) st.load[w.id] = drainCap > 0 ? drained / DT / drainCap : 0
+        break
+      }
+      case 'worker':
+        break // fed by its queue above
       default:
-        // queue, worker and storage arrive with stage 2 and 3; until then they pass traffic on untouched
+        // storage arrives with stage 3; until then it passes traffic on untouched
         st.load[id] = 0
         forward(id, flow)
     }
@@ -178,6 +215,7 @@ export function simulate(start: City, stage: Stage, heroClass: HeroClass, opts: 
   const recoveries = CLASSES[heroClass].autoRecoveries
   const ticks: Tick[] = []
   const samples: [number, number][] = []
+  const backlog = new Map<string, number>()
 
   for (let i = 0; i < TEST_SECONDS * TICKS_PER_SECOND; i++) {
     const t = i / TICKS_PER_SECOND
@@ -186,7 +224,7 @@ export function simulate(start: City, stage: Stage, heroClass: HeroClass, opts: 
       const before = new Set(city.buildings.map((b) => b.id))
       const r = applyAction(city, opts.firefight.action, { stage, heroClass })
       if (r.ok) {
-        city = r.city
+        city = autoWire(r.city)
         for (const b of city.buildings) if (!before.has(b.id)) builtAt.set(b.id, opts.firefight.atSecond)
       }
     }
@@ -198,7 +236,7 @@ export function simulate(start: City, stage: Stage, heroClass: HeroClass, opts: 
       if (victim) down.add(victim.id)
     }
     const offered = offeredAt(stage, t)
-    const st = step(city, heroClass, offered, t, builtAt, down)
+    const st = step(city, heroClass, offered, t, builtAt, down, backlog)
     ticks.push({ t, offered: total(offered), served: st.served, dropped: st.dropped, load: st.load })
     for (const s of st.samples) samples.push(s)
   }
@@ -208,13 +246,18 @@ export function simulate(start: City, stage: Stage, heroClass: HeroClass, opts: 
   const worst = ticks.reduce((a, b) => (b.dropped > a.dropped ? b : a), ticks[0])
   const worstBuilding = worst.dropped > 0 ? Object.entries(worst.load).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '' : ''
   const worstType = city.buildings.find((b) => b.id === worstBuilding)?.type
+  const killAt = kills[0]?.at
+  const deadServerHurt = killAt !== undefined && worst.dropped > 0 && worst.t >= killAt
+    && city.buildings.some((b) => b.type === 'lb' && b.option === 'round_robin')
   return {
     ticks,
     servedPct: offeredSum > 0 ? servedSum / offeredSum : 0,
     p95Ms: percentile(samples, 0.95),
     coinsLeft: city.coins,
     worstMoment: { second: worst.dropped > 0 ? worst.t : 0, building: worstBuilding },
-    lesson: worstType
+    lesson: deadServerHurt
+      ? 'When a server died, round robin kept sending it its share of the traffic. A least connections balancer routes around dead servers, and a spare server soaks up the rest.'
+      : worstType
       ? LESSONS[worstType] ?? 'Something gave way under pressure.'
       : worst.dropped > 0
         ? 'Traffic never reached your city. Connect the users to a load balancer, and the API servers to a database.'
