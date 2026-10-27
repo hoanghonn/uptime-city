@@ -3,7 +3,7 @@ import { compare, newCity, simulate, STAGES, TEST_SECONDS, type Action, type Cit
 export const ASK_BACK_MS = 3000
 export const FIREFIGHT_MS = 8000
 
-export type Phase = 'map' | 'briefing' | 'build' | 'test' | 'firefight' | 'result'
+export type Phase = 'map' | 'briefing' | 'build' | 'test' | 'firefight' | 'result' | 'replay'
 export type LogLine = { who: 'you' | 'hero' | 'rival' | 'system'; text: string }
 export type Rival = { city: City; lines: string[]; source: 'live' | 'scripted' }
 export type CommandResponse = {
@@ -33,6 +33,8 @@ export type Game = {
   outcome: 'win' | 'lose' | 'draw' | null
   cleared: Record<string, boolean>
   log: LogLine[]
+  /** end of the replay window, while replaying */
+  replayEnd: number
 }
 
 export type Effect = { type: 'answer'; text: string } | null
@@ -41,7 +43,7 @@ export function initialGame(): Game {
   return {
     phase: 'map', stageId: 'shorty', heroClass: 'generalist', city: newCity(STAGES.shorty, 'generalist'), rival: null,
     thinking: false, askBack: null, t: 0, nova: null, rivalSim: null, firefight: null, firefightUsed: false,
-    firefightAction: null, outcome: null, cleared: {}, log: [],
+    firefightAction: null, outcome: null, cleared: {}, log: [], replayEnd: 0,
   }
 }
 
@@ -95,8 +97,24 @@ function finish(g: Game): Game {
   return { ...g, phase: 'result', t: TEST_SECONDS, outcome, cleared: outcome === 'win' ? { ...g.cleared, [g.stageId]: true } : g.cleared }
 }
 
-/** Moves the stress test forward; stops at the chaos card for the one firefight command. */
+/** Six seconds around the worst moment, inside the 30-second test. */
+export function replayWindow(worstSecond: number): [number, number] {
+  const start = Math.min(Math.max(0, worstSecond - 3), TEST_SECONDS - 6)
+  return [start, start + 6]
+}
+
+export function startReplay(g: Game): Game {
+  if (g.phase !== 'result' || !g.nova) return g
+  const [start, end] = replayWindow(g.nova.worstMoment.second)
+  return { ...g, phase: 'replay', t: start, replayEnd: end }
+}
+
+/** Moves the stress test (or a replay) forward; the test stops at the chaos card for the one firefight command. */
 export function advance(g: Game, seconds: number): Game {
+  if (g.phase === 'replay') {
+    const t = g.t + seconds
+    return t >= g.replayEnd ? { ...g, phase: 'result', t: TEST_SECONDS } : { ...g, t }
+  }
   if (g.phase !== 'test') return g
   const at = chaosAt(g.stageId)
   const t = g.t + seconds

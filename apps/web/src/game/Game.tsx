@@ -8,7 +8,7 @@ import { PushToTalk, type PttState } from '../voice/pushToTalk'
 import { BusyError, getStatus, LowPowerError, newRun, postCommand, postRival } from './api'
 import { localCommand } from './localParser'
 import {
-  ASK_BACK_MS, FIREFIGHT_MS, advance, answerText, applyCommand, applyFirefight, beginBuild, initialGame, say, setRival, setThinking, startStage,
+  ASK_BACK_MS, FIREFIGHT_MS, advance, startReplay, answerText, applyCommand, applyFirefight, beginBuild, initialGame, say, setRival, setThinking, startStage,
   startTest, tickClock, toMap, type Game as G,
 } from './flow'
 import './game.css'
@@ -94,7 +94,7 @@ export default function Game() {
   useEffect(() => {
     const id = setInterval(() => {
       const cur = gRef.current
-      let next = cur.phase === 'test' ? advance(cur, TICK_MS / 1000) : cur
+      let next = cur.phase === 'test' || cur.phase === 'replay' ? advance(cur, TICK_MS / 1000) : cur
       const step = tickClock(next, TICK_MS, { holding: holdingRef.current })
       next = step.game
       if (cur.phase === 'test' && next.phase === 'firefight') {
@@ -138,7 +138,7 @@ export default function Game() {
   const tick = g.nova ? g.nova.ticks[Math.min(g.nova.ticks.length - 1, Math.round(g.t * 10))] : null
   const rtick = g.rivalSim ? g.rivalSim.ticks[Math.min(g.rivalSim.ticks.length - 1, Math.round(g.t * 10))] : null
   const pct = (x: typeof tick) => (x && x.offered > 0 ? Math.round((x.served / x.offered) * 100) : null)
-  const liveCards = g.phase === 'test' || g.phase === 'firefight' ? stage.chaos.filter((c) => g.t >= c.at) : []
+  const liveCards = g.phase === 'test' || g.phase === 'firefight' || g.phase === 'replay' ? stage.chaos.filter((c) => g.t >= c.at) : []
   const chaosLive = liveCards.length > 0
   const shownCity = useMemo(() => cityAt(g), [g])
   const rivalName = stage.rivalName
@@ -180,7 +180,7 @@ export default function Game() {
       <header className="hud">
         <b>{stage.title}</b>
         <span className="coins">{shownCity.coins} coins</span>
-        <span className="phase">{g.phase === 'build' ? 'Build' : g.phase === 'briefing' ? 'Briefing' : g.phase === 'result' ? 'Result' : `Stress test ${g.t.toFixed(1)} s`}</span>
+        <span className="phase">{g.phase === 'build' ? 'Build' : g.phase === 'briefing' ? 'Briefing' : g.phase === 'result' ? 'Result' : g.phase === 'replay' ? `Replay ${g.t.toFixed(1)} s` : `Stress test ${g.t.toFixed(1)} s`}</span>
         {chaosLive && <span className="chaos">Chaos card: {liveCards[liveCards.length - 1].title}</span>}
         {shownCity.wildcardUsed || g.firefightAction || !stage.wildcard ? null : <span className="wild">Wildcard: free {CATALOG[stage.wildcard].name.toLowerCase()}</span>}
         {lowPower && <span className="lowpower" title={`Today's AI budget is used up, so ${HERO_NAME} understands simple typed orders only.`}>Low-power mode: type simple orders</span>}
@@ -258,6 +258,7 @@ export default function Game() {
               <p className="lesson">{g.nova.lesson}</p>
               <div className="row">
                 <button className="primary" onClick={() => begin(g.stageId)}>Play again</button>
+                {g.nova.worstMoment.second > 0 && <button className="ghost" onClick={() => setG((x) => startReplay(x))}>Watch where it broke</button>}
                 <button className="ghost" onClick={() => setG((x) => toMap(x))}>Stage map</button>
               </div>
             </div>

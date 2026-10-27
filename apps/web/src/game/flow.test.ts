@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { applyAction, autoWire, newCity, STAGES, type Action, type City } from '@uptime/core'
 import {
-  ASK_BACK_MS, FIREFIGHT_MS, advance, applyCommand, applyFirefight, beginBuild, initialGame, retry, setRival, setThinking,
+  ASK_BACK_MS, FIREFIGHT_MS, advance, replayWindow, startReplay, applyCommand, applyFirefight, beginBuild, initialGame, retry, setRival, setThinking,
   startStage, startTest, tickClock, type Game,
 } from './flow'
 
@@ -116,5 +116,30 @@ describe('game flow', () => {
       { who: 'hero', text: 'Nope.' },
       { who: 'system', text: "Couldn't do that: not enough coins" },
     ])
+  })
+})
+
+describe('replay of the worst moment', () => {
+  it('the window is centred on the worst moment and clamped to the test', () => {
+    expect(replayWindow(16)).toEqual([13, 19])
+    expect(replayWindow(1)).toEqual([0, 6])
+    expect(replayWindow(29.5)).toEqual([24, 30])
+  })
+
+  it('a replay plays the window and returns to the result screen', () => {
+    let g = beginBuild(startStage(initialGame(), 'shorty', 'generalist'))
+    g = setRival(g, { city: RUSTY, lines: [], source: 'scripted' })
+    g = advance(startTest(g), 16)
+    g = applyFirefight(g, null)
+    g = advance(g, 30)
+    const worst = g.nova!.worstMoment.second
+    let r = startReplay(g)
+    expect(r.phase).toBe('replay')
+    expect(r.t).toBe(replayWindow(worst)[0])
+    r = advance(r, 3)
+    expect(r.phase).toBe('replay')
+    r = advance(r, 3.1)
+    expect(r.phase).toBe('result')
+    expect(r.outcome).toBe(g.outcome)
   })
 })
