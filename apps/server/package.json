@@ -1,0 +1,27 @@
+{
+  "name": "@uptime/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=../../.env src/main.ts",
+    "start": "tsx --env-file-if-exists=../../.env src/main.ts",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@fastify/multipart": "^10.1.6",
+    "@fastify/static": "^10.1.7",
+    "@fastify/websocket": "^11.3.4",
+    "@uptime/core": "^0.1.0",
+    "fastify": "^5.12.7",
+    "openai": "^7.45.0",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/ws": "^8.18.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

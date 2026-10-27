@@ -1,0 +1,11 @@
+{
+  "name": "uptime-city",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "test": "npm test --workspaces --if-present",
+    "dev:web": "npm run dev -w apps/web",
+    "dev:server": "npm run dev -w apps/server"
+  }
+}
