@@ -5,7 +5,7 @@ export const FIREFIGHT_MS = 8000
 
 export type Phase = 'map' | 'briefing' | 'build' | 'test' | 'firefight' | 'result' | 'replay'
 export type LogLine = { who: 'you' | 'hero' | 'rival' | 'system'; text: string }
-export type Rival = { city: City; lines: string[]; source: 'live' | 'scripted' }
+export type Rival = { city: City; lines: string[]; source: 'live' | 'scripted'; actions: Action[] }
 export type CommandResponse = {
   city: City
   heroLine: string

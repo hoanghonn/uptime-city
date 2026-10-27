@@ -24,7 +24,7 @@ const RUSTY = cityOf(stage.rivalScripted, 'data_keeper' as any)
 
 function building(): Game {
   let g = beginBuild(startStage(initialGame(), 'shorty', 'generalist'))
-  g = setRival(g, { city: RUSTY, lines: ['hi'], source: 'scripted' })
+  g = setRival(g, { city: RUSTY, lines: ['hi'], source: 'scripted', actions: [] })
   return applyCommand(g, { city: NOVA, heroLine: 'Built!', actions: [], rejected: [] }, 'build it').game
 }
 
@@ -94,7 +94,7 @@ describe('game flow', () => {
 
   it('a loss offers a retry of the same stage with a fresh city', () => {
     let g = beginBuild(startStage(initialGame(), 'shorty', 'generalist'))
-    g = setRival(g, { city: RUSTY, lines: [], source: 'scripted' })
+    g = setRival(g, { city: RUSTY, lines: [], source: 'scripted', actions: [] })
     g = advance(startTest(g), 16)
     g = applyFirefight(g, null)
     g = advance(g, 30)
@@ -128,7 +128,7 @@ describe('replay of the worst moment', () => {
 
   it('a replay plays the window and returns to the result screen', () => {
     let g = beginBuild(startStage(initialGame(), 'shorty', 'generalist'))
-    g = setRival(g, { city: RUSTY, lines: [], source: 'scripted' })
+    g = setRival(g, { city: RUSTY, lines: [], source: 'scripted', actions: [] })
     g = advance(startTest(g), 16)
     g = applyFirefight(g, null)
     g = advance(g, 30)

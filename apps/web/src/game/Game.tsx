@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { applyAction, autoWire, CATALOG, CLASSES, guideEntry, guideFor, scriptedRival, STAGES, STAGE_ORDER, type City, type HeroClass } from '@uptime/core'
+import { applyAction, autoWire, CATALOG, CLASSES, guideEntry, guideFor, rivalProgress, scriptedRival, STAGES, STAGE_ORDER, type City, type HeroClass } from '@uptime/core'
 import { GuideModal } from './Guide'
 import { City3D } from '../city/City3D'
 import { HeroMaker } from '../hero/HeroMaker'
@@ -41,6 +41,14 @@ export default function Game() {
   const chooseHero = (h: SavedHero | null) => { setHero(h); if (h) saveHero(h); else clearHero() }
   const [lowPower, setLowPower] = useState(false)
   const [guide, setGuide] = useState<string | null>(null)
+  // the rival builds at a human pace during the build phase
+  const buildStart = useRef(0)
+  const [buildSeconds, setBuildSeconds] = useState(0)
+  useEffect(() => {
+    if (g.phase !== 'build') return
+    const id = setInterval(() => setBuildSeconds((performance.now() - buildStart.current) / 1000), 500)
+    return () => clearInterval(id)
+  }, [g.phase])
   const guideModal = guide ? <GuideModal id={guide} onOpen={setGuide} onClose={() => setGuide(null)} /> : null
   const lowPowerRef = useRef(false)
   lowPowerRef.current = lowPower
@@ -129,6 +137,8 @@ export default function Game() {
     void browserPlayer.say({ line: `stage.${stageId}.brief`, voice: 'commentator' })
   }
   const build = async () => {
+    buildStart.current = performance.now()
+    setBuildSeconds(0)
     setG((x) => beginBuild(x))
     void browserPlayer.say(hero ? { text: hero.catchphrase, voice: 'hero' } : { line: 'hero.ready', voice: 'hero' })
     try {
@@ -150,6 +160,8 @@ export default function Game() {
   const chaosLive = liveCards.length > 0
   const shownCity = useMemo(() => cityAt(g), [g])
   const rivalName = stage.rivalName
+  const rivalPace = g.rival && g.phase === 'build' ? rivalProgress(g.rival.actions, stage, buildSeconds) : null
+  const rivalCity = rivalPace && !rivalPace.done ? rivalPace.city : g.rival?.city
 
   if (g.phase === 'map') {
     return (
@@ -215,7 +227,7 @@ export default function Game() {
       <main className="arena">
         <City3D city={shownCity} tick={tick} chaos={g.phase === 'firefight'} label={`${HERO_NAME} (you)${pct(tick) !== null ? ` · ${pct(tick)}%` : ''}`} accent="#5eead4" />
         {g.rival ? (
-          <City3D city={g.rival.city} tick={rtick} chaos={g.phase === 'firefight'} label={`${rivalName}${pct(rtick) !== null ? ` · ${pct(rtick)}%` : ''}`} accent="#f87171" />
+          <City3D city={rivalCity!} tick={rtick} chaos={g.phase === 'firefight'} label={`${rivalName}${pct(rtick) !== null ? ` · ${pct(rtick)}%` : rivalPace && !rivalPace.done ? ` · building ${rivalPace.built} of ${rivalPace.total}` : ''}`} accent="#f87171" />
         ) : (
           <div className="waiting">{g.phase === 'briefing' ? '' : `${rivalName} is building...`}</div>
         )}
