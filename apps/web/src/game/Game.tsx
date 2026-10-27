@@ -9,6 +9,7 @@ import { PushToTalk, type PttState } from '../voice/pushToTalk'
 import { BusyError, getStatus, LowPowerError, newRun, postCommand, postRival } from './api'
 import { localCommand } from './localParser'
 import { Palette } from './Palette'
+import { nextStep, STEPS } from './guidance'
 import {
   ASK_BACK_MS, FIREFIGHT_MS, advance, checklist, chooseSide, clickBuild, startReplay, answerText, applyCommand, applyFirefight, beginBuild, initialGame, say, setRival, setThinking, startStage,
   startTest, tickClock, toMap, type Game as G,
@@ -243,6 +244,18 @@ export default function Game() {
         <button className="ghost" onClick={() => setG((x) => toMap(x))}>Stage map</button>
       </header>
 
+      {(() => {
+        const ns = nextStep(g, { rivalReady: !!g.rival, voice: !lowPower && ptt !== 'no-mic' })
+        return (
+          <div className="stepbar">
+            <ol className="steps">
+              {STEPS.map((label, i) => <li key={label} className={i === ns.step ? 'on' : i < ns.step ? 'past' : ''}><span>{i + 1}</span>{label}</li>)}
+            </ol>
+            <div className="now">{ns.text}</div>
+          </div>
+        )
+      })()}
+
       <main className="arena">
         {stage.experiment && g.side !== null && (g.phase === 'build' || g.phase === 'briefing') && (
           <div className="checklist">
@@ -250,6 +263,9 @@ export default function Game() {
             {checklist(g).map((i) => <div key={i.label} className={i.done ? 'check done' : 'check'}>{i.done ? '✓' : '○'} {i.label}</div>)}
             {checklist(g).every((i) => i.done) && <div className="ready">Ready. Say "submit" or press Submit.</div>}
           </div>
+        )}
+        {g.phase === 'build' && shownCity.buildings.length === 0 && (
+          <div className="empty-hint">Your city starts here.<br /><span>Build a load balancer first →</span></div>
         )}
         <City3D city={shownCity} tick={tick} chaos={g.phase === 'firefight'} label={`${HERO_NAME} (you)${pct(tick) !== null ? ` · ${pct(tick)}%` : ''}`} accent="#5eead4" />
         {g.rival ? (
@@ -390,7 +406,7 @@ export default function Game() {
           {ptt === 'no-mic' && <div className="warn">Allow the microphone in the address bar and reload, or type below.</div>}
           {partial && <div className="partial">{partial}</div>}
           <div className="log">
-            {g.log.slice(-3).map((l, i) => (
+            {g.log.slice(-2).map((l, i) => (
               <div key={i} className={`line ${l.who}`}><b>{l.who === 'you' ? 'You' : l.who === 'hero' ? HERO_NAME : l.who === 'rival' ? rivalName : ''}</b> {l.text}</div>
             ))}
           </div>

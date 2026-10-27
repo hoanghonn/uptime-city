@@ -30,9 +30,15 @@ export function Palette({ stageId, city, heroClass, phase, onBuild, onLearn }: P
                 <span className="pal-label">{item.label}</span>
                 <span className="pal-cost">{item.cost === 0 ? 'free' : `${item.cost}`}</span>
               </span>
-              {item.disabled && item.reason && item.reason !== 'only while building' && <span className="pal-why">{item.reason}</span>}
-              <span className="pal-pro">+ {item.pro}</span>
-              <span className="pal-con">− {item.con}</span>
+              {item.disabled && item.reason && item.reason !== 'only while building' && (
+                <span className="pal-why">{item.reason === 'not enough coins' ? `Need ${item.cost - city.coins} more coins` : item.reason}</span>
+              )}
+              {!(item.disabled && item.reason && item.reason !== 'only while building') && (
+                <>
+                  <span className="pal-pro">+ {item.pro}</span>
+                  <span className="pal-con">− {item.con}</span>
+                </>
+              )}
             </button>
           ))}
         </section>

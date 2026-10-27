@@ -1,6 +1,6 @@
 .city { position: relative; width: 100%; height: 100%; }
 .city-tag { position: absolute; top: 10px; left: 12px; z-index: 20; font: 600 12px/1 system-ui, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; border: 1px solid; border-radius: 999px; padding: 6px 10px; background: rgba(5, 11, 26, 0.7); }
-.label { font: 11px/1.25 system-ui, sans-serif; color: #e2e8f0; text-align: center; white-space: nowrap; background: rgba(5, 11, 26, 0.78); border: 1px solid #1e3358; border-radius: 6px; padding: 3px 6px; transform: translateY(-8px); }
+.label { font: 12px/1.25 system-ui, sans-serif; color: #e2e8f0; text-align: center; white-space: nowrap; background: rgba(5, 11, 26, 0.78); border: 1px solid #1e3358; border-radius: 6px; padding: 3px 6px; transform: translateY(-8px); }
 .label-row { display: flex; gap: 6px; align-items: baseline; justify-content: center; }
 .label-name { font-weight: 600; }
 .bar { width: 56px; height: 5px; background: #1e293b; border-radius: 3px; margin: 3px auto 1px; overflow: hidden; }

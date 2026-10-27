@@ -47,10 +47,10 @@ function Users() {
   )
 }
 
-type Props = { id: string; building?: B; position: [number, number]; load: number; crew?: Crew }
+type Props = { id: string; building?: B; position: [number, number]; load: number; crew?: Crew; showLoad?: boolean }
 
 /** One building: drops in when placed, glows, turns orange near capacity, red and shaking above it. */
-export function Building({ id, building, position, load, crew }: Props) {
+export function Building({ id, building, position, load, crew, showLoad = true }: Props) {
   const group = useRef<THREE.Group>(null)
   const mat = useRef<THREE.MeshStandardMaterial>(null)
   // Hidden until the builder reaches the site, then it rises from the ground.
@@ -112,9 +112,9 @@ export function Building({ id, building, position, load, crew }: Props) {
         <div className="label">
           <div className="label-row">
             <span className="label-name">{shortName(id, type)}</span>
-            {type !== 'users' && <span className={load > 1 ? 'pct hot' : 'pct'}>{pct}%</span>}
+            {type !== 'users' && showLoad && <span className={load > 1 ? 'pct hot' : 'pct'}>{pct}%</span>}
           </div>
-          {type !== 'users' && <div className="bar"><div className={load > 1 ? 'fill hot' : load > 0.8 ? 'fill warm' : 'fill'} style={{ width: `${Math.min(100, pct)}%` }} /></div>}
+          {type !== 'users' && showLoad && <div className="bar"><div className={load > 1 ? 'fill hot' : load > 0.8 ? 'fill warm' : 'fill'} style={{ width: `${Math.min(100, pct)}%` }} /></div>}
           {(badges.length > 0 || replicas > 0) && (
             <div className="badges">
               {badges.map((b) => <span key={b}>{b.replace('_', ' ')}</span>)}

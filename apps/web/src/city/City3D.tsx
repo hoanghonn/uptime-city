@@ -79,7 +79,7 @@ export function City3D({ city, tick, chaos = false, label, accent }: Props) {
         })}
         <Building key="users" id="users" position={positions.users} load={0} />
         {city.buildings.map((b) => (
-          <Building key={b.id} id={b.id} building={b} position={positions[b.id]} load={load[b.id] ?? 0} crew={crew.current!} />
+          <Building key={b.id} id={b.id} building={b} position={positions[b.id]} load={load[b.id] ?? 0} crew={crew.current!} showLoad={!!tick} />
         ))}
         {city.buildings.map((b) => <Sparks key={`s-${b.id}`} id={b.id} at={positions[b.id]} crew={crew.current!} />)}
         <Hero crew={crew.current} positions={positions} color={accent} />
