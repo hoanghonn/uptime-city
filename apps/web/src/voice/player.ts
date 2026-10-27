@@ -1,3 +1,4 @@
+import { runHeaders } from '../game/api'
 export type VoiceName = 'hero' | 'rival' | 'commentator'
 export type SayItem = { voice: VoiceName; line?: string; text?: string }
 
@@ -46,7 +47,8 @@ export const browserPlayer = createPlayer({
       audio.play().catch(reject)
     }),
   fetchTts: async (voice, text) => {
-    const res = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ voice, text }) })
+    const res = await fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json', ...runHeaders() }, body: JSON.stringify({ voice, text }), signal: AbortSignal.timeout(8000) }).catch(() => null)
+    if (!res) return null
     if (!res.ok) return null
     return URL.createObjectURL(await res.blob())
   },

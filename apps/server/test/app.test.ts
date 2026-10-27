@@ -40,3 +40,13 @@ describe('POST /api/rival', () => {
     expect(never).toBeDefined()
   })
 })
+
+describe('with public-demo limits on', () => {
+  it('a voice request carrying the run id is admitted', async () => {
+    const { RunLimits } = await import('../src/caps')
+    const fetchImpl = (async () => new Response(new Uint8Array([1, 2, 3]), { status: 200 })) as typeof fetch
+    const app = buildApp({ meta: okClient, bot: okClient, limits: new RunLimits({}), tts: { apiKey: 'k', fetch: fetchImpl } })
+    const res = await app.inject({ method: 'POST', url: '/api/tts', headers: { 'x-run-id': 'r1' }, payload: { voice: 'hero', text: 'hi' } })
+    expect(res.statusCode).toBe(200)
+  })
+})

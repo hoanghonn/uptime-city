@@ -7,11 +7,13 @@ export class BusyError extends Error {}
 let runId = crypto.randomUUID()
 /** One run per attempt at a stage; the server caps orders per run. */
 export const newRun = () => { runId = crypto.randomUUID() }
+/** Headers every capped request carries. */
+export const runHeaders = (): Record<string, string> => ({ 'x-run-id': runId })
 
 async function post<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-run-id': runId },
+    headers: { 'Content-Type': 'application/json', ...runHeaders() },
     body: JSON.stringify(body),
   })
   if (res.status === 503) throw new LowPowerError('low power')

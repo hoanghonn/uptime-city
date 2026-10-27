@@ -62,3 +62,10 @@ describe('voice player', () => {
     expect(played).toEqual(['/lines/good.mp3'])
   })
 })
+
+describe('browser player', () => {
+  it('sends the run id with live voice requests', async () => {
+    const { runHeaders } = await import('../game/api')
+    expect(runHeaders()['x-run-id']).toMatch(/[0-9a-f-]{36}/)
+  })
+})
