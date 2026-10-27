@@ -1,8 +1,8 @@
 import type { XZ } from './layout'
 
-export const BUILD_SECONDS = 0.5
+export const BUILD_SECONDS = 1.2
 const SPEED = 10 // world units a second
-const STAND_OFF: XZ = [-1.0, 1.0] // the builder stands at the front-left corner of the site
+const STAND_OFF: XZ = [-1.6, 1.6] // the builder stands at the front-left corner of the site
 
 /** The little builder hero: walks to each new building's site, builds it, moves on. Mutable for useFrame. */
 export type Crew = {

@@ -48,8 +48,8 @@ export default function Demo() {
         {t >= 15 && <span style={{ background: '#7c2d12', padding: '2px 8px', borderRadius: 4 }}>CHAOS: Celebrity tweet</span>}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-        <City3D city={t >= fixAt ? novaFixed : NOVA} tick={nova.ticks[i]} chaos={chaos} label={`Nova (you) · ${Math.round((nova.ticks[i].served / nova.ticks[i].offered) * 100)}%`} accent="#5eead4" />
-        <City3D city={RUSTY} tick={rusty.ticks[i]} chaos={chaos} label={`Rusty · ${Math.round((rusty.ticks[i].served / rusty.ticks[i].offered) * 100)}%`} accent="#f87171" />
+        <City3D city={t >= fixAt ? novaFixed : NOVA} tick={nova.ticks[i]} chaos={chaos} label={`Nova (you) · ${Math.round((nova.ticks[i].served / nova.ticks[i].offered) * 100)}%`} accent="#5eead4" instant />
+        <City3D city={RUSTY} tick={rusty.ticks[i]} chaos={chaos} label={`Rusty · ${Math.round((rusty.ticks[i].served / rusty.ticks[i].offered) * 100)}%`} accent="#f87171" instant />
       </div>
     </div>
   )

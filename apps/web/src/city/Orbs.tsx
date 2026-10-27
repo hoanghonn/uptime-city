@@ -6,7 +6,7 @@ import type { XZ } from './layout'
 const MAX = 1600
 const OK = new THREE.Color('#5eead4')
 const DROPPED = new THREE.Color('#f87171')
-const Y = 0.35
+const Y = 0.45
 
 type Props = {
   routes: string[][]
@@ -73,7 +73,7 @@ export function Orbs({ routes, positions, load, offered, servedFraction, running
 
   return (
     <instancedMesh ref={mesh} args={[undefined, undefined, MAX]} frustumCulled={false}>
-      <sphereGeometry args={[1, 10, 10]} />
+      <boxGeometry args={[1.6, 1.6, 1.6]} />
       <meshBasicMaterial toneMapped={false} />
     </instancedMesh>
   )

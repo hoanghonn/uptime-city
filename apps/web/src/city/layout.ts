@@ -1,6 +1,6 @@
 import type { BuildingType, City } from '@uptime/core'
 
-export const CELL = 2.6
+export const CELL = 3.6
 export type XZ = [number, number]
 export type Road = { from: string; to: string; points: [XZ, XZ] }
 

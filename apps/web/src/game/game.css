@@ -139,3 +139,25 @@ td.better { color: #86efac; font-weight: 700; }
 .talk { grid-template-columns: 260px 1fr 320px; padding: 12px 16px; }
 .mic { height: 62px; font-size: 15px; }
 .log .line { font-size: 14px; }
+
+/* bigger everything */
+.screen, .game { font-size: 16px; }
+.hud { padding: 12px 18px; gap: 16px; }
+.hud b { font-size: 20px; }
+.coins { font-size: 16px; padding: 3px 12px; }
+.phase, .wild, .chaos { font-size: 15px; }
+.primary { padding: 11px 18px; font-size: 15px; }
+.ghost { padding: 10px 16px; font-size: 15px; }
+.steps li { font-size: 15px; padding: 5px 12px; }
+.steps li span { width: 24px; height: 24px; font-size: 13px; }
+.now { font-size: 17px; }
+.palette { padding: 14px; gap: 12px; }
+.pal-group h4 { font-size: 14px; }
+.pal-row, .pal-cost { font-size: 16px; }
+.pal-pro, .pal-con, .pal-why { font-size: 13px; }
+.mic { height: 68px; font-size: 17px; }
+.log .line { font-size: 16px; }
+.talk input { font-size: 16px; padding: 12px 14px; }
+.card h2 { font-size: 30px; }
+.card p { font-size: 17px; }
+.city-tag { font-size: 14px; padding: 7px 12px; }

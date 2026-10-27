@@ -1,13 +1,34 @@
 import { useFrame } from '@react-three/fiber'
-import { useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { crewStep, type Crew } from './builder'
 import type { XZ } from './layout'
+import { pixelTexture } from './textures'
 
-/** A little low-poly builder in a hard hat who walks to each site and hammers it up. */
+const box = (w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d)
+const HEAD = box(0.5, 0.5, 0.5)
+const HAT = box(0.58, 0.16, 0.58)
+const BODY = box(0.5, 0.7, 0.28)
+const LIMB = box(0.22, 0.62, 0.22)
+const HANDLE = box(0.08, 0.5, 0.08)
+const HAMMER = box(0.3, 0.16, 0.16)
+
+/** A blocky builder in a hard hat: walks to each site, then hammers the building up. */
 export function Hero({ crew, positions, color }: { crew: Crew; positions: Record<string, XZ>; color: string }) {
   const body = useRef<THREE.Group>(null)
-  const arm = useRef<THREE.Group>(null)
+  const armR = useRef<THREE.Group>(null)
+  const armL = useRef<THREE.Group>(null)
+  const legR = useRef<THREE.Group>(null)
+  const legL = useRef<THREE.Group>(null)
+  const mats = useMemo(() => ({
+    skin: new THREE.MeshStandardMaterial({ map: pixelTexture('skin') }),
+    hat: new THREE.MeshStandardMaterial({ map: pixelTexture('gold'), emissive: '#ca8a04', emissiveIntensity: 0.2 }),
+    shirt: new THREE.MeshStandardMaterial({ color, map: pixelTexture('metal') }),
+    pants: new THREE.MeshStandardMaterial({ map: pixelTexture('pants') }),
+    wood: new THREE.MeshStandardMaterial({ map: pixelTexture('plank') }),
+    iron: new THREE.MeshStandardMaterial({ map: pixelTexture('metal'), metalness: 0.4 }),
+  }), [color])
+
   useFrame(({ clock }, dt) => {
     const t = clock.elapsedTime
     crewStep(crew, positions, t, Math.min(dt, 0.1))
@@ -15,44 +36,37 @@ export function Hero({ crew, positions, color }: { crew: Crew; positions: Record
     if (!g) return
     const walking = crew.mode === 'walking'
     const building = crew.mode === 'building'
-    g.position.set(crew.pos[0], walking ? Math.abs(Math.sin(t * 16)) * 0.12 : Math.sin(t * 3) * 0.03, crew.pos[1])
+    const swing = walking ? Math.sin(t * 12) * 0.8 : 0
+    g.position.set(crew.pos[0], walking ? Math.abs(Math.sin(t * 12)) * 0.08 : 0, crew.pos[1])
     if (walking) g.rotation.y = crew.heading
-    else if (building) g.rotation.y += (Math.PI / 4 - g.rotation.y) * 0.2 // face the site
-    if (arm.current) arm.current.rotation.x = building ? -1.2 + Math.abs(Math.sin(t * 14)) * 1.6 : walking ? Math.sin(t * 16) * 0.6 : 0
+    else if (building) g.rotation.y += (Math.PI * 0.75 - g.rotation.y) * 0.2 // face the site
+    if (legR.current) legR.current.rotation.x = swing
+    if (legL.current) legL.current.rotation.x = -swing
+    if (armL.current) armL.current.rotation.x = -swing
+    if (armR.current) armR.current.rotation.x = building ? -2.2 + Math.abs(Math.sin(t * 10)) * 1.9 : swing
   })
+
   return (
-    <group ref={body} scale={1.6}>
-      <mesh position={[0, 0.45, 0]} castShadow>
-        <capsuleGeometry args={[0.2, 0.4, 4, 10]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.35} />
-      </mesh>
-      <mesh position={[0, 0.98, 0]} castShadow>
-        <sphereGeometry args={[0.17, 16, 12]} />
-        <meshStandardMaterial color="#fde4cf" />
-      </mesh>
-      <mesh position={[0, 1.07, 0]}>
-        <sphereGeometry args={[0.2, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
-        <meshStandardMaterial color="#facc15" emissive="#facc15" emissiveIntensity={0.4} />
-      </mesh>
-      <mesh position={[0, 0.98, 0.15]}>
-        <boxGeometry args={[0.22, 0.06, 0.04]} />
-        <meshBasicMaterial color="#67e8f9" toneMapped={false} />
-      </mesh>
-      <group ref={arm} position={[0.24, 0.7, 0]}>
-        <mesh position={[0, -0.18, 0]}>
-          <boxGeometry args={[0.07, 0.36, 0.07]} />
-          <meshStandardMaterial color={color} />
-        </mesh>
-        <mesh position={[0, -0.38, 0.1]}>
-          <boxGeometry args={[0.16, 0.08, 0.1]} />
-          <meshStandardMaterial color="#cbd5e1" metalness={0.6} roughness={0.3} />
-        </mesh>
+    <group ref={body} scale={1.5}>
+      <group ref={legL} position={[-0.12, 0.62, 0]}><mesh geometry={LIMB} material={mats.pants} position={[0, -0.31, 0]} castShadow /></group>
+      <group ref={legR} position={[0.12, 0.62, 0]}><mesh geometry={LIMB} material={mats.pants} position={[0, -0.31, 0]} castShadow /></group>
+      <mesh geometry={BODY} material={mats.shirt} position={[0, 0.97, 0]} castShadow />
+      <group ref={armL} position={[-0.36, 1.26, 0]}><mesh geometry={LIMB} material={mats.shirt} position={[0, -0.28, 0]} castShadow /></group>
+      <group ref={armR} position={[0.36, 1.26, 0]}>
+        <mesh geometry={LIMB} material={mats.shirt} position={[0, -0.28, 0]} castShadow />
+        <mesh geometry={HANDLE} material={mats.wood} position={[0, -0.6, 0.2]} rotation={[Math.PI / 2, 0, 0]} />
+        <mesh geometry={HAMMER} material={mats.iron} position={[0, -0.6, 0.45]} />
       </group>
+      <mesh geometry={HEAD} material={mats.skin} position={[0, 1.57, 0]} castShadow />
+      <mesh geometry={HAT} material={mats.hat} position={[0, 1.86, 0]} castShadow />
     </group>
   )
 }
 
-/** Sparks over a site while it is being built. */
+const SPARK = box(0.12, 0.12, 0.12)
+const SPARK_MATS = [new THREE.MeshBasicMaterial({ color: '#fde047', toneMapped: false }), new THREE.MeshBasicMaterial({ color: '#fb923c', toneMapped: false })]
+
+/** Little cube sparks over a site while it is being built. */
 export function Sparks({ at, crew, id }: { at: XZ; crew: Crew; id: string }) {
   const group = useRef<THREE.Group>(null)
   useFrame(({ clock }) => {
@@ -60,22 +74,18 @@ export function Sparks({ at, crew, id }: { at: XZ; crew: Crew; id: string }) {
     if (!g) return
     const start = crew.started.get(id)
     const age = start === undefined ? -1 : clock.elapsedTime - start
-    const on = age >= 0 && age < 0.6
+    const on = age >= 0 && age < 1.3
     g.visible = on
     if (!on) return
     g.children.forEach((c, i) => {
-      const a = i * 1.7 + age * 9
-      c.position.set(Math.cos(a) * (0.4 + age), 0.3 + age * 2.2 + (i % 3) * 0.2, Math.sin(a) * (0.4 + age))
+      const a = i * 1.7 + age * 6
+      const k = (age * 1.5 + i * 0.13) % 1
+      c.position.set(Math.cos(a) * (0.6 + k), 0.4 + k * 2.4, Math.sin(a) * (0.6 + k))
     })
   })
   return (
     <group ref={group} position={[at[0], 0, at[1]]} visible={false}>
-      {Array.from({ length: 9 }, (_, i) => (
-        <mesh key={i}>
-          <sphereGeometry args={[0.05, 6, 6]} />
-          <meshBasicMaterial color={i % 2 ? '#fde047' : '#fb923c'} toneMapped={false} />
-        </mesh>
-      ))}
+      {Array.from({ length: 10 }, (_, i) => <mesh key={i} geometry={SPARK} material={SPARK_MATS[i % 2]} />)}
     </group>
   )
 }
